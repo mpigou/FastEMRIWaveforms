@@ -5,7 +5,6 @@ requires = [ "cython", "numpy", "scikit-build-core" ]
 
 [project]
 name = "fastemriwaveforms"
-description = "Fast and accurate EMRI Waveforms."
 classifiers = [
   "Environment :: GPU :: NVIDIA CUDA",
   "License :: OSI Approved :: GNU General Public License (GPL)",
@@ -20,7 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 
-dynamic = [ "version" ]
+dynamic = [ "description", "version" ]
 
 dependencies = [
   "h5py",
@@ -43,12 +42,13 @@ optional-dependencies.post = [
 
 [tool.setuptools_scm]
 version_scheme = "no-guess-dev"
-write_to = "src/fastemriwaveforms/_version.py"
+write_to = "src/few/_version.py"
 
 [tool.scikit-build]
 metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
-sdist.include = [ "src/fastemriwaveforms/_version.py" ]
+sdist.include = [ "src/few/_version.py" ]
 sdist.exclude = [ "*.cu", "*.hh", "*.pyx", "*.hpp", "*.h", "CMakeLists.txt" ]
+wheel.packages = [ "src/few" ]
 
 [tool.scikit-build.cmake.define]
 # Default values for CMake options used when building FEW.
@@ -58,6 +58,9 @@ sdist.exclude = [ "*.cu", "*.hh", "*.pyx", "*.hpp", "*.h", "CMakeLists.txt" ]
 # Whether LAPACK should be automatically fetched and compiled.
 #  note: for now this option is ignored and LAPACK is always fetched
 FEW_LAPACK_FETCH = "ON"
+
+# List of libs that must be linked to build against LAPACKE
+FEW_LAPACK_LIBS = "lapack;lapacke;gfortran"
 
 # Whether GPU support should be enabled
 #  NO: GPU support is disabled
