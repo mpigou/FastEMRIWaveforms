@@ -5,6 +5,14 @@ requires = [ "cython", "numpy", "scikit-build-core" ]
 
 [project]
 name = "fastemriwaveforms"
+
+readme = "README.md"
+
+license = { file = "LICENSE" }
+
+authors = [
+  { name = "Michael Katz", email = "mikekatz04@gmail.com" },
+]
 classifiers = [
   "Environment :: GPU :: NVIDIA CUDA",
   "License :: OSI Approved :: GNU General Public License (GPL)",
@@ -19,6 +27,8 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 
+# version is deduced from the lattest git tag
+# description is the docstring at the top of src/few/__init__.py
 dynamic = [ "description", "version" ]
 
 dependencies = [
@@ -39,6 +49,16 @@ optional-dependencies.post = [
   "lisaanalysistools",
   "lisatools",
 ]
+
+optional-dependencies.testing = [
+  "matplotlib",
+]
+
+urls.Documentation = "https://bhptoolkit.org/FastEMRIWaveforms/html/index.html"
+urls.Download = "https://pypi.org/project/fastemriwaveforms/#files"
+urls.Homepage = "https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms"
+urls.Source = "https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms"
+urls.Tracker = "https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms/issues"
 
 [tool.setuptools_scm]
 version_scheme = "no-guess-dev"
