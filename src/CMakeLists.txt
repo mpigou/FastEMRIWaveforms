@@ -1,1 +1,1 @@
-add_subdirectory(few)
+add_subdirectory(compiled)
