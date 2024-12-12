@@ -8,8 +8,6 @@ name = "fastemriwaveforms"
 
 readme = "README.md"
 
-license = { file = "LICENSE" }
-
 authors = [
   { name = "Michael Katz", email = "mikekatz04@gmail.com" },
 ]
