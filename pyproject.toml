@@ -93,14 +93,14 @@ wheel.packages = [ "src/few" ]
 [tool.scikit-build.cmake.define]
 # Default values for CMake options used when building FEW.
 # These can be tuned on CLI as follozs:
-#   $ pip install . --config-settings=cmake.define.FEW_LAPACK_FETCH=OFF
+#   $ pip install . --config-settings=cmake.define.FEW_LAPACKE_FETCH=OFF
 
 # Whether LAPACK should be automatically fetched and compiled.
 #  note: for now this option is ignored and LAPACK is always fetched
-FEW_LAPACK_FETCH = "ON"
+FEW_LAPACKE_FETCH = "ON"
 
 # List of libs that must be linked to build against LAPACKE
-FEW_LAPACK_LIBS = "lapack;lapacke;gfortran"
+FEW_LAPACKE_LIBS = "lapack;lapacke;gfortran"
 
 # Whether GPU support should be enabled
 #  NO: GPU support is disabled

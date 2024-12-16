@@ -39,10 +39,10 @@ set(FEW_CUDA_ARCH
       "CUDA Architecture targetted for FEW compilation (see doc of CMAKE_CUDA_ARCHITECTURE)."
 )
 
-set(FEW_LAPACK_FETCH AUTO CACHE STRING
-                                "Download and compile LAPACK (with LAPACKE)")
+set(FEW_LAPACKE_FETCH AUTO CACHE STRING
+                                 "Download and compile LAPACK (with LAPACKE)")
 set_property(
-  CACHE FEW_LAPACK_FETCH
+  CACHE FEW_LAPACKE_FETCH
   PROPERTY STRINGS
            AUTO
            ON
@@ -54,8 +54,21 @@ set_property(
            VALUE
            "AUTO")
 
-set(FEW_LAPACK_LIBS "lapack;lapacke;gfortran"
+set(FEW_LAPACKE_LIBS "lapack;lapacke;gfortran"
     CACHE STRING "Libs to link to build against LAPACKE.")
+
+set(FEW_LAPACKE_DETECT_WITH "CMAKE" CACHE STRING "Tool used to locate LAPACKE.")
+set_property(
+  CACHE FEW_LAPACKE_DETECT_WITH
+  PROPERTY STRINGS
+           CMAKE
+           PKGCONFIG
+           HELPSTRING
+           "Tool used to locate LAPACKE."
+           TYPE
+           "STRING"
+           VALUE
+           "CMAKE")
 
 # ---- Optionnally check if GPU is supported ----
 if(FEW_WITH_GPU STREQUAL "AUTO")

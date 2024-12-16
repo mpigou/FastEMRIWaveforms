@@ -1,30 +1,34 @@
 # Define the compilation of the Cython part of this project
 
 # ---- Handle LAPACK/LAPACKE access ----
-if(FEW_LAPACK_FETCH STREQUAL "AUTO")
+if(FEW_LAPACKE_FETCH STREQUAL "AUTO")
   # Try to find both LAPACK and LAPACKE
-  find_package(lapack)
-  if(lapack_FOUND)
+  if(FEW_LAPACKE_DETECT_WITH STREQUAL "CMAKE")
     find_package(lapacke)
+  elseif(FEW_LAPACKE_DETECT_WITH STREQUAL "PKGCONFIG")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LAPACKE IMPORTED_TARGET lapacke)
   endif()
-  if(lapack_FOUND AND lapacke_FOUND)
+  if(lapacke_FOUND)
     set(_FEW_ACTUALLY_FETCH_LAPACK OFF)
-    message(
-      STATUS "Found LAPACK ${lapack_VERSION} and LAPACKE ${lapacke_VERSION}.")
+    message(STATUS "Found LAPACKE ${lapacke_VERSION}.")
   else()
     set(_FEW_ACTUALLY_FETCH_LAPACK ON)
   endif()
 
-elseif(FEW_LAPACK_FETCH STREQUAL "ON")
+elseif(FEW_LAPACKE_FETCH STREQUAL "ON")
   set(_FEW_ACTUALLY_FETCH_LAPACK ON)
 
-elseif(FEW_LAPACK_FETCH STREQUAL "OFF")
-  find_package(lapack REQUIRED)
-  find_package(lapacke REQUIRED)
+elseif(FEW_LAPACKE_FETCH STREQUAL "OFF")
+  if(FEW_LAPACKE_DETECT_WITH STREQUAL "CMAKE")
+    find_package(lapacke REQUIRED)
+  elseif(FEW_LAPACKE_DETECT_WITH STREQUAL "PKGCONFIG")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LAPACKE REQUIRED IMPORTED_TARGET lapacke)
+  endif()
   set(_FEW_ACTUALLY_FETCH_LAPACK OFF)
 
-  message(
-    STATUS "Found LAPACK ${lapack_VERSION} and LAPACKE ${lapacke_VERSION}.")
+  message(STATUS "Found LAPACKE ${lapacke_VERSION}.")
 
 else()
   message(
@@ -80,7 +84,7 @@ few_add_cython_library(
   NAME few_cutils_pyinterp
   PYX_SOURCES pyinterp.pyx
   CU_SOURCES interpolate.cu
-  LINK PUBLIC ${FEW_LAPACK_LIBS}
+  LINK PUBLIC ${FEW_LAPACKE_LIBS}
   HEADERS cuda_complex.hpp global.h interpolate.hh ${_COMMON_ARGS})
 
 few_add_cython_library(
