@@ -31,7 +31,7 @@ dynamic = [ "description", "version" ]
 
 dependencies = [
   "h5py",
-  "multispline @ git+https://github.com/znasipak/multispline.git@0b0daf2436afe4dca9e58be019977991488bcaa0",
+  "multispline",
   "numba",
   "numpy",
   "requests",
