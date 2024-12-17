@@ -54,8 +54,10 @@ set_property(
            VALUE
            "AUTO")
 
-set(FEW_LAPACKE_LIBS "lapack;lapacke;gfortran"
-    CACHE STRING "Libs to link to build against LAPACKE.")
+set(FEW_LAPACKE_LIBS "" CACHE STRING "Libs to link to build against LAPACKE.")
+set_property(
+  CACHE FEW_LAPACKE_LIBS
+  PROPERTY HELPSTRING "Libs to link to build against LAPACKE." TYPE "STRING")
 
 set(FEW_LAPACKE_DETECT_WITH "CMAKE" CACHE STRING "Tool used to locate LAPACKE.")
 set_property(

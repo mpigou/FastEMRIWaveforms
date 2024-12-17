@@ -99,7 +99,7 @@ wheel.packages = [ "src/few" ]
 FEW_LAPACKE_FETCH = "ON"
 
 # List of libs that must be linked to build against LAPACKE
-FEW_LAPACKE_LIBS = "lapack;lapacke;gfortran"
+# FEW_LAPACKE_LIBS = "lapack;lapacke;gfortran"
 
 # Whether GPU support should be enabled
 #  NO: GPU support is disabled
