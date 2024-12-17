@@ -37,7 +37,6 @@ dependencies = [
   "requests",
   "rich",
   "scipy",
-  "tpi-splines",
   "tqdm",
 ]
 
