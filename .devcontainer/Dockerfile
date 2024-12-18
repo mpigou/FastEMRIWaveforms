@@ -6,6 +6,8 @@ RUN apt update \
       g++-14 \
       gfortran-14 \
       libgsl-dev \
+      liblapacke64-dev \
+      pkg-config \
       python3 \
       python3-dev \
       python3-pip \
