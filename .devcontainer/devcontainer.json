@@ -10,7 +10,8 @@
                 "ms-vscode.cmake-tools",
                 "tamasfe.even-better-toml",
                 "ms-vscode.cpptools-extension-pack",
-                "ktnrg45.vscode-cython"
+                "ktnrg45.vscode-cython",
+                "github.vscode-github-actions"
             ]
         }
     },
