@@ -93,26 +93,26 @@ endif()
 set(_COMMON_ARGS INCLUDE PRIVATE ${Python_NumPy_INCLUDE_DIR} WITH_CPU_VERSION)
 
 few_add_cython_library(
-  NAME few_cutils_pymatmul
+  NAME pymatmul DESTINATION "few/cutils"
   PYX_SOURCES pymatmul.pyx
   CU_SOURCES matmul.cu
   HEADERS cuda_complex.hpp global.h matmul.hh ${_COMMON_ARGS})
 
 few_add_cython_library(
-  NAME few_cutils_pyinterp
+  NAME pyinterp DESTINATION "few/cutils"
   PYX_SOURCES pyinterp.pyx
   CU_SOURCES interpolate.cu
   LINK PUBLIC ${FEW_LAPACKE_LIBS}
   HEADERS cuda_complex.hpp global.h interpolate.hh ${_COMMON_ARGS})
 
 few_add_cython_library(
-  NAME few_cutils_pyAAK
+  NAME pyAAK DESTINATION "few/cutils"
   PYX_SOURCES gpuAAKWrap.pyx
   CU_SOURCES gpuAAK.cu
   HEADERS cuda_complex.hpp global.h gpuAAK.hh ${_COMMON_ARGS})
 
 few_add_cython_library(
-  NAME few_cutils_pyAmpInterp2D
+  NAME pyAmpInterp2D DESTINATION "few/cutils"
   PYX_SOURCES pyampinterp2D.pyx
   CU_SOURCES AmpInterp2D.cu
   HEADERS cuda_complex.hpp global.h AmpInterp2D.hh ${_COMMON_ARGS})

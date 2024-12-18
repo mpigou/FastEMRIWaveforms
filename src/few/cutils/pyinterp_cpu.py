@@ -1,4 +1,4 @@
-from few_cutils_pyinterp_cpu import (
+from .pyinterp_cpu import (
     interpolate_arrays_wrap,
     get_waveform_wrap,
     get_waveform_generic_fd_wrap,

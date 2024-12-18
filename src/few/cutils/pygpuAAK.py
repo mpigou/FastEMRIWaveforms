@@ -1,3 +1,3 @@
-from few_cutils_pyAAK import pyWaveform
+from .pyAAK import pyWaveform
 
 __all__ = ["pyWaveform"]

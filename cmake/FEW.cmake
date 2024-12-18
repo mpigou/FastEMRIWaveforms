@@ -4,10 +4,13 @@ function(few_process_cython IN_PYXFILE OUT_CXXFILE MODULE_NAME)
     OUTPUT "${MODULE_NAME}/${OUT_CXXFILE}"
     COMMENT
       "Using Cython to build ${CMAKE_CURRENT_BINARY_DIR}/${MODULE_NAME}/${OUT_CXXFILE} from ${CMAKE_CURRENT_SOURCE_DIR}/${IN_PYXFILE}."
+    COMMAND ${CMAKE_COMMAND} ARGS -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/${MODULE_NAME}/"
     COMMAND
-      Python::Interpreter -m cython "${CMAKE_CURRENT_SOURCE_DIR}/${IN_PYXFILE}"
-      --output-file "${CMAKE_CURRENT_BINARY_DIR}/${MODULE_NAME}/${OUT_CXXFILE}"
-      -3 -+ --module-name "${MODULE_NAME}" -I "${CMAKE_CURRENT_SOURCE_DIR}"
+      Python::Interpreter ARGS -m cython
+      "${CMAKE_CURRENT_SOURCE_DIR}/${IN_PYXFILE}" --output-file
+      "${CMAKE_CURRENT_BINARY_DIR}/${MODULE_NAME}/${OUT_CXXFILE}" -3 -+
+      --module-name "${MODULE_NAME}" -I "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS "${IN_PYXFILE}"
     VERBATIM)
 endfunction()
@@ -23,7 +26,7 @@ endfunction()
 function(few_add_cython_library)
   # Process arguments
   set(options WITH_CPU_VERSION)
-  set(oneValueArgs NAME)
+  set(oneValueArgs NAME DESTINATION)
   set(multiValueArgs
       PYX_SOURCES
       CU_SOURCES
@@ -93,7 +96,10 @@ function(few_add_cython_library)
                                                   ${FEW_CUDA_ARCH})
 
   # Make target installed
-  install(TARGETS ${FEW_ADDLIB_NAME} DESTINATION .)
+  if(NOT FEW_ADDLIB_DESTINATION)
+    set(FEW_ADDLIB_DESTINATION ".")
+  endif()
+  install(TARGETS ${FEW_ADDLIB_NAME} DESTINATION ${FEW_ADDLIB_DESTINATION})
 
   # Define the CPU version if requested
   if(FEW_ADDLIB_WITH_CPU_VERSION)
@@ -117,6 +123,6 @@ function(few_add_cython_library)
                   ${FEW_ADDLIB_CXX_SOURCES}
       LINK ${FEW_ADDLIB_LINK}
       INCLUDE ${FEW_ADDLIB_INCLUDE}
-      HEADERS ${FEW_ADDLIB_HEADERS})
+      HEADERS ${FEW_ADDLIB_HEADERS} DESTINATION ${FEW_ADDLIB_DESTINATION})
   endif()
 endfunction()
