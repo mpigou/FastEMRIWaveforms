@@ -537,6 +537,25 @@ def get_package_basepath() -> pathlib.Path:
     return pathlib.Path(few.__file__).parent
 
 
+class AutoArrayMode(enum.Enum):
+    """Enumeration of automatic array conversion modes"""
+
+    DEFAULT = "default"
+    """Default mode is no-op: no conversion take place"""
+
+    STRICT = "strict"
+    """Strict mode always convert from/into np and xp arrays and raise warnings"""
+
+    NUMPY = "numpy"
+    """This mode always return np arrays and convert back into xp array in method inputs"""
+
+    DEMO = "demo"
+    """Methods called by user use NUMPY mode and nested methods use strict mode"""
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
 class Configuration(ConfigConsumer):
     """
     Class implementing FEW complete configuration for the library.
@@ -551,6 +570,7 @@ class Configuration(ConfigConsumer):
     file_integrity_check: str
     file_extra_paths: List[pathlib.Path]
     enabled_backends: Optional[List[str]]
+    auto_array_mode: AutoArrayMode
 
     @staticmethod
     def config_entries() -> List[ConfigEntry]:
@@ -662,6 +682,14 @@ class Configuration(ConfigConsumer):
                 validate=lambda x: all(v in KNOWN_BACKENDS for v in x)
                 if x is not None
                 else True,
+            ),
+            ConfigEntry(
+                label="auto_array_mode",
+                description="Mode for handling automatic conversion of np and cp arrays",
+                type=AutoArrayMode,
+                default=AutoArrayMode.DEFAULT,
+                env_var="ARRAY_MODE",
+                validate=lambda x: x in AutoArrayMode._member_names_,
             ),
         ]
 

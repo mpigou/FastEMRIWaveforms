@@ -15,6 +15,7 @@ from .config import (
     InitialConfigConsumer,
     Configuration,
     detect_cfg_file,
+    AutoArrayMode,
 )
 from ..cutils import BackendsManager, Backend
 from ..files import FileManager
@@ -111,6 +112,14 @@ class ConfigurationSetter:
     ) -> ConfigurationSetter:
         """Add supplementary research paths to file manager"""
         return self._convert_and_set("file_extra_paths", paths)
+
+    def set_array_mode_strict(self):
+        """Set Array conversion mode to STRICT"""
+        return self._convert_and_set("auto_array_mode", AutoArrayMode.STRICT)
+
+    def set_array_mode_demo(self):
+        """Set Array conversion mode to DEMO"""
+        return self._convert_and_set("auto_array_mode", AutoArrayMode.DEMO)
 
     def _convert_and_set(self, label: str, value: typing.Any) -> ConfigurationSetter:
         if Globals().is_initialized:
