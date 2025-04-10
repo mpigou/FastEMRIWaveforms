@@ -555,6 +555,12 @@ class AutoArrayMode(enum.Enum):
     def __str__(self) -> str:
         return str(self.value)
 
+    @classmethod
+    def __contains__(cls, item):
+        return isinstance(item, cls) or item in [
+            v.value for v in cls.__members__.values()
+        ]
+
 
 class Configuration(ConfigConsumer):
     """
@@ -689,7 +695,7 @@ class Configuration(ConfigConsumer):
                 type=AutoArrayMode,
                 default=AutoArrayMode.DEFAULT,
                 env_var="ARRAY_MODE",
-                validate=lambda x: x in AutoArrayMode._member_names_,
+                validate=lambda x: x in AutoArrayMode,
             ),
         ]
 

@@ -44,7 +44,7 @@ class CubicSplineInterpolant(ParallelModuleBase):
         t: t values as input for the spline. If 2D, must have shape (ninterps, length).
         y_all: y values for the spline; shape is (length,) or (ninterps, length).
         **kwargs: Optional keyword arguments for the base class:
-            :class:`few.utils.baseclasses.ParallelModuleBase`.
+            :class:`few.utils.parallel_base.ParallelModuleBase`.
     """
 
     def __init__(self, t: np.ndarray, y_all: np.ndarray, **kwargs):
@@ -366,7 +366,7 @@ class InterpolatedModeSum(SummationBase):
             self.xp.asarray(phase_interp_coeffs), [2, 0, 1]
         ).flatten()
 
-        # for ylm with negative m, need to multiply by (-1)**l as this is assumed to have happened by the kernel
+        # for ylm with negative m, need to multiply by (-1)**l as this is assumed to have happened by the kernel
         ylms = ylms.copy()
         ylms[num_teuk_modes:] *= (-1) ** l_arr
 
@@ -382,6 +382,6 @@ class InterpolatedModeSum(SummationBase):
             num_teuk_modes,
             ylms.astype(self.xp.complex128),
             dt,
-            h_t, 
+            h_t,
             dev,
         )

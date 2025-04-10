@@ -61,7 +61,7 @@ class RomanAmplitude(AmplitudeBase, SchwarzschildEccentric):
         **kwargs (dict, optional): Keyword arguments for the base classes:
             :class:`few.utils.baseclasses.SchwarzschildEccentric`,
             :class:`few.utils.baseclasses.AmplitudeBase`,
-            :class:`few.utils.baseclasses.ParallelModuleBase`.
+            :class:`few.utils.parallel_base.ParallelModuleBase`.
             Default is {}.
 
     """
@@ -315,6 +315,8 @@ class RomanAmplitude(AmplitudeBase, SchwarzschildEccentric):
                 if emm >= 0:
                     temp[lmn] = teuk_modes[:, self.special_index_map_arr[ell, emm, enn]]
                 else:
-                    temp[lmn] = (-1)**ell * self.xp.conj(teuk_modes[:, self.special_index_map_arr[ell, emm, enn]])
+                    temp[lmn] = (-1) ** ell * self.xp.conj(
+                        teuk_modes[:, self.special_index_map_arr[ell, emm, enn]]
+                    )
 
             return temp

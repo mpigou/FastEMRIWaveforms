@@ -302,7 +302,7 @@ class GetYlms(ParallelModuleBase):
             half as modes with :math:`m<0` for array inputs of :math:`l,m`. **Warning**: It will also duplicate
             the :math:`m=0` modes. Default is False.
         **kwargs: Optional keyword arguments for the base class:
-            :class:`few.utils.baseclasses.ParallelModuleBase`.
+            :class:`few.utils.parallel_base.ParallelModuleBase`.
     """
 
     def __init__(self, include_minus_m: bool = False, **kwargs: Optional[dict]):
@@ -315,7 +315,11 @@ class GetYlms(ParallelModuleBase):
 
     # These are the spin-weighted spherical harmonics with s=-2
     def __call__(
-        self, l_in: Union[int, np.ndarray], m_in: Union[int, np.ndarray], theta: float, phi: float
+        self,
+        l_in: Union[int, np.ndarray],
+        m_in: Union[int, np.ndarray],
+        theta: float,
+        phi: float,
     ) -> np.ndarray:
         """Call method for Ylms.
 
@@ -334,7 +338,7 @@ class GetYlms(ParallelModuleBase):
         if isinstance(l_in, int) or isinstance(m_in, int):
             assert isinstance(l_in, int) and isinstance(m_in, int)
             return _ylm_kernel_inner(l_in, m_in, theta, phi)
-            
+
         # if assuming positive m, repeat entries for negative m
         # this will duplicate m = 0
         if self.include_minus_m:
