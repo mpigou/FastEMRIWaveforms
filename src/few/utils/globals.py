@@ -1,6 +1,9 @@
 """Definition of global states (logger, config, file manager, fast backend, ...)"""
 
+# pyright: strict
+
 from __future__ import annotations
+
 
 import logging
 import logging.handlers
@@ -19,11 +22,14 @@ from .config import (
 from ..cutils import BackendsManager, Backend
 from ..files import FileManager
 
+T = typing.TypeVar("T")
+PathLike = os.PathLike[typing.Any]
 
-class Singleton(type):
-    _instances = {}
 
-    def __call__(cls, *args, **kwargs):
+class Singleton(type, typing.Generic[T]):
+    _instances: dict[Singleton[T], T] = {}
+
+    def __call__(cls, *args: typing.Any, **kwargs: typing.Any) -> T:
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
@@ -37,27 +43,29 @@ class FewGlobalsReadOnly(FewException):
     """Exception raised when trying to modify the global structure."""
 
 
-class MultiHandlerTarget:
+class MultiHandlerTarget(logging.Handler):
     """Helper class to transition logger from memory-buffer to stream handler during globals init"""
 
-    handlers: typing.List[logging.Handler]
+    handlers: typing.Sequence[logging.Handler]
     level: int
 
-    def __init__(self, level: int, *handlers):
+    def __init__(self, level: int, *handlers: logging.Handler):
         self.handlers = handlers
         self.level = level
 
-    def handle(self, record):
+    def handle(self, record: logging.LogRecord) -> bool:
+        any_false: bool = False
         if record.levelno >= self.level:
             for handler in self.handlers:
-                handler.handle(record)
+                any_false |= handler.handle(record) is False
+        return not any_false
 
 
 class ConfigurationSetter:
     """Helper class to define configuration options."""
 
     _args: typing.Dict[str, typing.Any]
-    _entries: typing.Dict[str, ConfigEntry]
+    _entries: typing.Dict[str, ConfigEntry[typing.Any]]
     _finalizer: typing.Optional[typing.Callable[[typing.Dict[str, typing.Any]], None]]
 
     def __init__(
@@ -78,7 +86,7 @@ class ConfigurationSetter:
         """Set a specific log level"""
         return self._convert_and_set("log_level", level)
 
-    def set_storage_path(self, path: os.PathLike) -> ConfigurationSetter:
+    def set_storage_path(self, path: PathLike) -> ConfigurationSetter:
         """Modify the storage path"""
         return self._convert_and_set("file_storage_path", path)
 
@@ -86,11 +94,11 @@ class ConfigurationSetter:
         """Change the log format"""
         return self._convert_and_set("log_format", format)
 
-    def set_file_registry_path(self, registry_path: os.PathLike) -> ConfigurationSetter:
+    def set_file_registry_path(self, registry_path: PathLike) -> ConfigurationSetter:
         """Set the file registry to use"""
         return self._convert_and_set("file_registry_path", registry_path)
 
-    def set_file_download_path(self, path: os.PathLike) -> ConfigurationSetter:
+    def set_file_download_path(self, path: PathLike) -> ConfigurationSetter:
         """Set the download path"""
         return self._convert_and_set("file_download_path", path)
 
@@ -107,7 +115,7 @@ class ConfigurationSetter:
         return self._convert_and_set("file_integrity_check", when)
 
     def add_file_extra_paths(
-        self, *paths: typing.List[os.PathLike]
+        self, *paths: typing.List[PathLike]
     ) -> ConfigurationSetter:
         """Add supplementary research paths to file manager"""
         return self._convert_and_set("file_extra_paths", paths)
@@ -150,7 +158,7 @@ class Globals(metaclass=Singleton):
 
     def init(
         self,
-        cli_args: typing.Optional[typing.Sequence[typing.Any]] = None,
+        cli_args: typing.Optional[typing.Sequence[str]] = None,
         set_args: typing.Optional[typing.Dict[str, typing.Any]] = None,
     ):
         """Initialize config, file manager and logger with optional CLI arguments."""
@@ -228,7 +236,7 @@ class Globals(metaclass=Singleton):
                 )
         return super().__getattribute__("_config_setter")
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: typing.Any):
         raise FewGlobalsReadOnly("Cannot set attribute on Globals structure.")
 
     def _preinit_logger(self):
@@ -249,7 +257,9 @@ class Globals(metaclass=Singleton):
         setter = ConfigurationSetter(finalizer=lambda args: self.init(set_args=args))
         super().__setattr__("_config_setter", setter)
 
-    def _init_config(self, cli_args, set_args):
+    def _init_config(
+        self, cli_args: typing.Sequence[str], set_args: typing.Dict[str, typing.Any]
+    ):
         """Initialize configurations"""
         import os
 
@@ -404,7 +414,7 @@ def get_first_backend(backend_names: typing.Sequence[str]) -> Backend:
     return Globals().backends_manager.get_first_backend(backend_names)
 
 
-def initialize(*cli_args):
+def initialize(*cli_args: str):
     """Initialize FEW configuration, logger and file manager with CLI arguments"""
     Globals().init(*cli_args)
 

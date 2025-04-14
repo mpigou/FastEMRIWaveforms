@@ -11,16 +11,16 @@ import os
 import pathlib
 from typing import (
     Any,
-    TypeVar,
-    Generic,
-    Optional,
-    List,
-    Union,
-    Sequence,
-    Mapping,
-    Dict,
     Callable,
+    Dict,
+    Generic,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
     Tuple,
+    TypeVar,
+    Union,
 )
 from . import exceptions
 from ..cutils import KNOWN_BACKENDS
@@ -59,7 +59,7 @@ class ConfigEntry(Generic[T]):
     description: str
     """Description of the configuration entry"""
 
-    type: TypeVar = T
+    type: type = T
     """Type of the value"""
 
     default: Optional[T] = None
@@ -77,7 +77,7 @@ class ConfigEntry(Generic[T]):
     cli_kwargs: Optional[Dict[str, Any]] = None
     """Supplementary arguments to argparse add_argument method for CLI options"""
 
-    convert: Callable[[str], T] = None
+    converter: Optional[Callable[[str], T]] = None
     """Method used to convert a user input to expected type"""
 
     validate: Callable[[T], bool] = lambda _: True
@@ -86,9 +86,14 @@ class ConfigEntry(Generic[T]):
     overwrite: Callable[[T, T], T] = lambda _, new: new
     """Method used to update the value if given by multiple means"""
 
+    @property
+    def convert(self) -> Callable[[str], T]:
+        assert self.converter is not None
+        return self.converter
+
     def __post_init__(self):
-        if self.convert is None:
-            self.convert = lambda v: self.type(v)
+        if self.converter is None:
+            self.converter = lambda v: self.type(v)
 
 
 def compatibility_isinstance(obj, cls) -> bool:
@@ -155,7 +160,7 @@ class ConfigConsumer(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def config_entries(cls) -> List[ConfigEntry]:
+    def config_entries(cls) -> Tuple[ConfigEntry[Any], ...]:
         """Return the list of the class config entries"""
         raise NotImplementedError(
             "A ConfigConsumer must implement 'config_entries' method."
@@ -432,13 +437,16 @@ class ConfigConsumer(abc.ABC):
         return set_items
 
 
-def userstr_to_bool(user_str: str) -> Optional[bool]:
+def userstr_to_bool(user_str: str) -> bool:
     """Convert a yes/no, on/off or true/false to bool."""
     if user_str.lower().startswith(("y", "t", "on", "1")):
         return True
     if user_str.lower().startswith(("n", "f", "off", "0")):
         return False
-    return None
+    raise exceptions.ConfigurationError(
+        "User option should have been truethy (yes/on/true/1) or false "
+        f"(no/off/false/0), but was actually '{user_str}'"
+    )
 
 
 def userinput_to_pathlist(user_input) -> List[pathlib.Path]:
@@ -487,9 +495,13 @@ class InitialConfigConsumer(ConfigConsumer):
     ignore_env: bool
     config_file: Optional[pathlib.Path]
 
-    @staticmethod
-    def config_entries() -> List[ConfigEntry]:
-        return [
+    @classmethod
+    def config_entries(
+        cls,
+    ) -> Tuple[
+        ConfigEntry[bool], ConfigEntry[bool], ConfigEntry[Optional[pathlib.Path]]
+    ]:
+        return (
             ConfigEntry(
                 label="ignore_cfg",
                 description="Whether to ignore config file options",
@@ -498,7 +510,7 @@ class InitialConfigConsumer(ConfigConsumer):
                 env_var="IGNORE_CFG_FILE",
                 cli_flags="--ignore-config-file",
                 cli_kwargs={"action": "store_const", "const": True},
-                convert=userstr_to_bool,
+                converter=userstr_to_bool,
                 validate=lambda x: isinstance(x, bool),
             ),
             ConfigEntry(
@@ -508,7 +520,7 @@ class InitialConfigConsumer(ConfigConsumer):
                 default=False,
                 cli_flags="--ignore-env",
                 cli_kwargs={"action": "store_const", "const": True},
-                convert=userstr_to_bool,
+                converter=userstr_to_bool,
                 validate=lambda x: isinstance(x, bool),
             ),
             ConfigEntry(
@@ -518,10 +530,10 @@ class InitialConfigConsumer(ConfigConsumer):
                 default=None,
                 cli_flags=["-C", "--config-file"],
                 env_var="CONFIG_FILE",
-                convert=lambda p: None if p is None else pathlib.Path(p),
+                converter=lambda p: None if p is None else pathlib.Path(p),
                 validate=lambda p: True if p is None else p.is_file(),
             ),
-        ]
+        )
 
     def __init__(
         self,
@@ -543,7 +555,7 @@ class Configuration(ConfigConsumer):
     """
 
     log_level: int
-    log_format: str
+    log_format: Optional[str]
     file_registry_path: Optional[pathlib.Path]
     file_storage_path: Optional[pathlib.Path]
     file_download_path: Optional[pathlib.Path]
@@ -552,11 +564,23 @@ class Configuration(ConfigConsumer):
     file_extra_paths: List[pathlib.Path]
     enabled_backends: Optional[List[str]]
 
-    @staticmethod
-    def config_entries() -> List[ConfigEntry]:
+    @classmethod
+    def config_entries(
+        cls,
+    ) -> Tuple[
+        ConfigEntry[int],
+        ConfigEntry[Optional[str]],
+        ConfigEntry[Optional[pathlib.Path]],
+        ConfigEntry[Optional[pathlib.Path]],
+        ConfigEntry[Optional[pathlib.Path]],
+        ConfigEntry[bool],
+        ConfigEntry[str],
+        ConfigEntry[List[pathlib.Path]],
+        ConfigEntry[Optional[List[str]]],
+    ]:
         from few import _is_editable as is_editable_mode
 
-        return [
+        return (
             ConfigEntry(
                 label="log_level",
                 description="Application log level",
@@ -565,7 +589,7 @@ class Configuration(ConfigConsumer):
                 cli_flags=["--log-level"],
                 env_var="LOG_LEVEL",
                 cfg_entry="log-level",
-                convert=Configuration._str_to_logging_level,
+                converter=Configuration._str_to_logging_level,
             ),
             ConfigEntry(
                 label="log_format",
@@ -575,7 +599,7 @@ class Configuration(ConfigConsumer):
                 cli_flags=["--log-format"],
                 env_var="LOG_FORMAT",
                 cfg_entry="log-format",
-                convert=lambda input: input,
+                converter=lambda input: input,
                 validate=lambda input: input is None or isinstance(input, str),
             ),
             ConfigEntry(
@@ -586,7 +610,7 @@ class Configuration(ConfigConsumer):
                 cli_flags=["--file-registry"],
                 env_var="FILE_REGISTRY",
                 cfg_entry="file-registry",
-                convert=lambda p: None if p is None else pathlib.Path(p),
+                converter=lambda p: None if p is None else pathlib.Path(p),
                 validate=lambda p: True if p is None else p.is_file(),
             ),
             ConfigEntry(
@@ -597,7 +621,7 @@ class Configuration(ConfigConsumer):
                 cli_flags=["--storage-dir"],
                 env_var="FILE_STORAGE_DIR",
                 cfg_entry="file-storage-dir",
-                convert=lambda p: None if p is None else pathlib.Path(p).absolute(),
+                converter=lambda p: None if p is None else pathlib.Path(p).absolute(),
                 validate=lambda p: True if p is None else p.is_dir(),
             ),
             ConfigEntry(
@@ -608,7 +632,7 @@ class Configuration(ConfigConsumer):
                 cli_flags=["--download-dir"],
                 env_var="FILE_DOWNLOAD_DIR",
                 cfg_entry="file-download-dir",
-                convert=lambda p: None if p is None else pathlib.Path(p),
+                converter=lambda p: None if p is None else pathlib.Path(p),
                 validate=lambda p: True
                 if p is None
                 else (p.is_dir() if p.is_absolute() else True),
@@ -622,7 +646,9 @@ class Configuration(ConfigConsumer):
                 cli_kwargs={"action": argparse.BooleanOptionalAction},
                 env_var="FILE_ALLOW_DOWNLOAD",
                 cfg_entry="file-allow-download",
-                convert=lambda x: userstr_to_bool(x) if isinstance(x, str) else bool(x),
+                converter=lambda x: userstr_to_bool(x)
+                if isinstance(x, str)
+                else bool(x),
             ),
             ConfigEntry(
                 label="file_integrity_check",
@@ -644,7 +670,7 @@ class Configuration(ConfigConsumer):
                 cli_kwargs={"action": "append"},
                 env_var="FILE_EXTRA_PATHS",
                 cfg_entry="file-extra-paths",
-                convert=userinput_to_pathlist,
+                converter=userinput_to_pathlist,
                 overwrite=lambda old, new: old + new
                 if old is not None
                 else new,  # concatenate extra path lists
@@ -658,12 +684,12 @@ class Configuration(ConfigConsumer):
                 cli_kwargs={"action": "append"},
                 env_var="ENABLED_BACKENDS",
                 cfg_entry="enabled-backends",
-                convert=lambda x: [v.lower() for v in userinput_to_strlist(x)],
+                converter=lambda x: [v.lower() for v in userinput_to_strlist(x)],
                 validate=lambda x: all(v in KNOWN_BACKENDS for v in x)
                 if x is not None
                 else True,
             ),
-        ]
+        )
 
     def __init__(
         self,

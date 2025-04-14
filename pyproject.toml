@@ -186,3 +186,9 @@ report.omit = [
   "*/few/git_version.py",
   "*/few_backend_*/git_version.py",
 ]
+
+[tool.pyright]
+
+include = [ "src" ]
+
+pythonVersion = "3.9"
