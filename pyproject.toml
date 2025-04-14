@@ -58,6 +58,7 @@ dependencies = [
   "rich",                                  # To display downlaod progress bar
   "scipy",
   "tqdm",
+  "wrapt",                                 # To write transparent decorators
   #@DEPS_CUPYCUDA@,
   #@DEPS_FEWCORE@,
 ]

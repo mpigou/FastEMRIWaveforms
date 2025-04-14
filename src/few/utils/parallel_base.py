@@ -5,7 +5,6 @@ from typing import Optional, Sequence, TypeVar, Union
 
 from ..cutils import Backend
 from .citations import Citable
-from .globals import get_backend, get_first_backend
 
 BackendLike = Union[str, Backend, None]
 """Type hint to declare a backend in constructor."""
@@ -25,6 +24,8 @@ class ParallelModuleBase(Citable):
     _backend_name: str
 
     def __init__(self, /, force_backend: BackendLike = None):
+        from .globals import get_backend, get_first_backend
+
         if force_backend is not None:
             if isinstance(force_backend, Backend):
                 force_backend = force_backend.name
@@ -35,6 +36,8 @@ class ParallelModuleBase(Citable):
     @property
     def backend(self) -> Backend:
         """Access the underlying backend."""
+        from .globals import get_backend
+
         return get_backend(self._backend_name)
 
     @classmethod

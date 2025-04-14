@@ -15,10 +15,10 @@ from .config import (
     InitialConfigConsumer,
     Configuration,
     detect_cfg_file,
-    AutoArrayMode,
 )
 from ..cutils import BackendsManager, Backend
 from ..files import FileManager
+from .auto_array import AutoArrayMode
 
 
 class Singleton(type):

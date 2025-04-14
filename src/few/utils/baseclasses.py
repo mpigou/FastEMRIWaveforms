@@ -25,242 +25,18 @@ from __future__ import annotations
 
 import numpy as np
 
-from contextvars import ContextVar
-import types
-from typing import Optional, Sequence, TypeVar, Union, Callable
+from typing import TypeVar
 
 # Python imports
 
 from ..utils.citations import Citable, REFERENCE
 from ..utils.mappings.kerrecceq import kerrecceq_forward_map
-from .globals import get_logger, get_config
-from .config import AutoArrayMode
-from .exceptions import FewException
+from .globals import get_logger
 from .parallel_base import BackendLike, ParallelModuleBase
+from .auto_array import auto_output_array_np, auto_output_array_xp
 
 xp_ndarray = TypeVar("xp_ndarray")
 """Generic alias for backend ndarray"""
-
-
-class AutoArrayException(FewException):
-    """Base-class for exceptions related to the automatic array conversion feature."""
-
-
-def __extract_xp(*args, **kwargs) -> types.ModuleType:
-    """Extract module associated to the "xp" notion in a method call context"""
-    if isinstance(args[0], ParallelModuleBase):
-        return args[0].backend.xp
-    raise AutoArrayException(f"Could not detect xp from {args=} and {kwargs=}")
-
-
-def __process_out_value(xp, idx: int, value):
-    if not isinstance(value, xp.ndarray):
-        get_logger().warning(
-            f"Method was expected to return a {xp.ndarray=} as output #{idx} "
-            f"but is was returned {type(value)} instead.",
-            stack_info=True,
-        )
-        return xp.asarray(value)
-    return value
-
-
-def __process_in_value(xp, idx: int, value):
-    if not isinstance(value, xp.ndarray):
-        get_logger().warning(
-            f"Method was expected to receive a {xp.ndarray=} as input #{idx} "
-            f"but received {type(value)} instead.",
-            stack_info=True,
-        )
-        return xp.asarray(value)
-    return value
-
-
-def __process_key_value(xp, key: str, value):
-    if not isinstance(value, xp.ndarray):
-        get_logger().warning(
-            f"Method was expected to receive a {xp.ndarray=} as keyword argument '{key}' "
-            f"but received {type(value)} instead.",
-            stack_info=True,
-        )
-        return xp.asarray(value)
-    return value
-
-
-OutLocation = Optional[Sequence[int]]
-InLocation = Optional[Sequence[Union[int, str]]]
-
-
-def __array_strict_out_xp_wrapper(method: Callable) -> Callable:
-    """Ensure that method returns a xp array (raise warning otherwise)"""
-
-    def wrapped_out_xp(*args, **kwargs):
-        out = method(*args, **kwargs)
-        xp = __extract_xp(*args, **kwargs)
-        if not isinstance(out, xp.ndarray):
-            get_logger().warning(
-                f"Method was expected to return a xp.ndarray but returned {type(out)} instead.",
-                stack_info=True,
-            )
-            return xp.asarray(out)
-        return out
-
-    return wrapped_out_xp
-
-
-def __array_strict_out_np_wrapper(method: Callable) -> Callable:
-    """Ensure that method returns a np array (raise warning otherwise)"""
-
-    def wrapped_out_np(*args, **kwargs):
-        out = method(*args, **kwargs)
-        if not isinstance(out, np.ndarray):
-            get_logger().warning(
-                f"Method was expected to return a np.ndarray but returned {type(out)} instead.",
-                stack_info=True,
-            )
-            return np.asarray(out)
-        return out
-
-    return wrapped_out_np
-
-
-def __array_strict_out_mix_wrapper(
-    method: Callable, xp_at: OutLocation, np_at: OutLocation
-) -> Callable:
-    """Ensure that method tuple output contain xp and np array at expected locations"""
-    xp_at: Sequence[int] = [] if xp_at is None else xp_at
-    np_at: Sequence[int] = [] if np_at is None else np_at
-
-    def wrapped_out_mix(*args, **kwargs):
-        out = method(*args, **kwargs)
-        xp = __extract_xp(*args, **kwargs)
-        if not isinstance(out, tuple):
-            get_logger().error(
-                f"Method was expected to return a tuple but returned {type(out)} instead.",
-                stack_info=True,
-            )
-
-        return tuple(
-            __process_out_value(xp if i in xp_at else np, i, v)
-            if (i in xp_at) or (i in np_at)
-            else v
-            for i, v in enumerate(out)
-        )
-
-    return wrapped_out_mix
-
-
-def __array_strict_in_wrapper(
-    method: Callable, xp_at: InLocation, np_at: InLocation
-) -> Callable:
-    """Ensure that method receives xp or np array as input where expected"""
-    xp_at: Sequence[Union[int, str]] = [] if xp_at is None else xp_at
-    np_at: Sequence[Union[int, str]] = [] if np_at is None else np_at
-
-    def wrapped_in(*args, **kwargs):
-        xp = __extract_xp(*args, **kwargs)
-        new_args = [
-            __process_in_value(xp if i in xp_at else np, i, v)
-            if (i in xp_at) or (i in np_at)
-            else v
-            for i, v in enumerate(args)
-        ]
-        new_kwargs = {
-            k: __process_key_value(xp if k in xp_at else np, k, v)
-            if (k in xp_at) or (k in np_at)
-            else v
-            for k, v in kwargs.items()
-        }
-        return method(*new_args, **new_kwargs)
-
-    return wrapped_in
-
-
-def _array_out_strict_wrapper(
-    method: Callable, out_idx: Optional[Sequence[int]] = None
-) -> Callable:
-    """Ensure that all output values expected to be xp arrays are indeed"""
-
-    def wrapped_method(*args, **kwargs):
-        out = method(*args, **kwargs)
-        xp = __extract_xp(*args, **kwargs)
-        if out_idx is None:
-            if not isinstance(out, xp.ndarray):
-                get_logger().warning(
-                    f"Method was expected to return a xp.ndarray but returned {type(out)} instead.",
-                    stack_info=True,
-                )
-                out = xp.asarray(out)
-            return out
-        return tuple(
-            __process_out_value(xp, i, v) if i in out_idx else v
-            for i, v in enumerate(out)
-        )
-
-    return wrapped_method
-
-
-def _array_out_numpy_wrapper(
-    method: Callable, out_idx: Optional[Sequence[int]] = None
-) -> Callable:
-    """Ensure that all output values expected to be xp arrays are converted into np arrays"""
-
-    def wrapped_method(*args, **kwargs):
-        out = method(*args, **kwargs)
-        if out_idx is None:
-            if not isinstance(out, np.ndarray):
-                return np.asarray(out)
-            return out
-        return tuple(np.asarray(v) if i in out_idx else v for i, v in enumerate(out))
-
-    return wrapped_method
-
-
-def _array_out_demo_wrapper(
-    method: Callable, out_idx: Optional[Sequence[int]] = None
-) -> Callable:
-    """Apply the numpy wrapper to top-most called method and strict one to inner-most"""
-
-    def wrapped_method(*args, **kwargs):
-        var: ContextVar[bool] = ContextVar("array_demo", default=False)
-        if var.get():
-            # We are is inner call, use strict mode
-            return _array_out_strict_wrapper(method, out_idx)(*args, **kwargs)
-
-        # We are in top call, use numpy mode and set context var
-        token = var.set(True)
-        out = _array_out_strict_wrapper(method, out_idx)(*args, **kwargs)
-        var.reset(token)
-        return out
-
-    return wrapped_method
-
-
-def _array_out_dispatcher(
-    method: Callable, out_idx: Optional[Sequence[int]] = None
-) -> Callable:
-    """Dispatch the method to the currently defined mode"""
-    mode = get_config().auto_array_mode
-    if mode == AutoArrayMode.DEFAULT:
-        return method
-    if mode == AutoArrayMode.STRICT:
-        return _array_out_strict_wrapper(method, out_idx)
-    if mode == AutoArrayMode.NUMPY:
-        return _array_out_numpy_wrapper(method, out_idx)
-    if mode == AutoArrayMode.DEMO:
-        return _array_out_demo_wrapper(method, out_idx)
-    raise NotImplementedError(f"array_out_xp with {mode=} is not yet implemented")
-
-
-def array_out_xp(
-    method: Callable, out_xp: OutLocation = None, out_np: OutLocation = None
-) -> Callable:
-    """Decorator indicating that method output is or contain xp.ndarray"""
-
-    def decorated_method(*args, **kwargs):
-        dispatched_method = _array_out_dispatcher(method, out_xp, out_np)
-        return dispatched_method(*args, **kwargs)
-
-    return decorated_method
 
 
 class SphericalHarmonic(ParallelModuleBase):
@@ -826,6 +602,8 @@ class Pn5AAK(Citable):
         phiK = phiK % (2 * np.pi)
         return (qS, phiS, qK, phiK)
 
+    @auto_output_array_np()
+    @auto_output_array_xp()
     def sanity_check_traj(self, p: np.ndarray, e: np.ndarray, Y: np.ndarray):
         r"""Sanity check on parameters output from thte trajectory module.
 

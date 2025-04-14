@@ -24,6 +24,7 @@ from typing import (
 )
 from . import exceptions
 from ..cutils import KNOWN_BACKENDS
+from .auto_array import AutoArrayMode
 
 
 class ConfigSource(enum.Enum):
@@ -535,31 +536,6 @@ def get_package_basepath() -> pathlib.Path:
     import few
 
     return pathlib.Path(few.__file__).parent
-
-
-class AutoArrayMode(enum.Enum):
-    """Enumeration of automatic array conversion modes"""
-
-    DEFAULT = "default"
-    """Default mode is no-op: no conversion take place"""
-
-    STRICT = "strict"
-    """Strict mode always convert from/into np and xp arrays and raise warnings"""
-
-    NUMPY = "numpy"
-    """This mode always return np arrays and convert back into xp array in method inputs"""
-
-    DEMO = "demo"
-    """Methods called by user use NUMPY mode and nested methods use strict mode"""
-
-    def __str__(self) -> str:
-        return str(self.value)
-
-    @classmethod
-    def __contains__(cls, item):
-        return isinstance(item, cls) or item in [
-            v.value for v in cls.__members__.values()
-        ]
 
 
 class Configuration(ConfigConsumer):
