@@ -3,13 +3,13 @@ on:
   pull_request_target:
     types:
       - opened
+      - edited
       - reopened
 permissions:
   pull-requests: write
 jobs:
   documentation-links:
     runs-on: ubuntu-latest
-    if: github.event.repository.full_name == 'BlackHolePerturbationToolkit/FastEMRIWaveforms'
     steps:
       - name: print info
         run: |
@@ -17,5 +17,6 @@ jobs:
           echo "github.event.pull_request.base.repo.full_name=${{ github.event.pull_request.base.repo.full_name }}"
           echo "github.event.pull_request.head.repo.full_name=${{ github.event.pull_request.head.repo.full_name }}"
       - uses: readthedocs/actions/preview@v1
+        if: github.event.pull_request.base.repo.full_name == 'BlackHolePerturbationToolkit/FastEMRIWaveforms'
         with:
           project-slug: "fastemriwaveforms"
