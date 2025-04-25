@@ -1,21 +1,6 @@
-# Collection of base classes for FastEMRIWaveforms Packages
-
-# Copyright (C) 2020 Michael L. Katz, Alvin J.K. Chua, Niels Warburton, Scott A. Hughes
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
+Collection of base classes for FastEMRIWaveforms Packages
+
 The :code:`few.utils.baseclasses` module contains abstract base classes for the
 various modules. When creating new modules, these classes should be used to maintain
 a common interface and pass information related to each model.
@@ -23,16 +8,16 @@ a common interface and pass information related to each model.
 
 from __future__ import annotations
 
-import numpy as np
-
 import types
 from typing import Optional, Sequence, TypeVar, Union
 
+import numpy as np
+
 # Python imports
 from ..cutils import Backend
-from ..utils.citations import Citable, REFERENCE
+from ..utils.citations import REFERENCE, Citable
+from ..utils.globals import get_backend, get_first_backend, get_logger
 from ..utils.mappings.kerrecceq import kerrecceq_forward_map
-from ..utils.globals import get_logger, get_backend, get_first_backend
 
 xp_ndarray = TypeVar("xp_ndarray")
 """Generic alias for backend ndarray"""
@@ -355,11 +340,19 @@ class SphericalHarmonic(ParallelModuleBase):
 
         # TODO make this more efficient
         # mode indices for all positive m-modes
-        self.mode_indexes = self.xp.linspace(0, self.num_teuk_modes-1, self.num_teuk_modes, dtype=int) 
+        self.mode_indexes = self.xp.linspace(
+            0, self.num_teuk_modes - 1, self.num_teuk_modes, dtype=int
+        )
         # mode indices for all negative m-modes
-        self.negative_mode_indexes = self.xp.linspace(0, self.num_teuk_modes-1, self.num_teuk_modes, dtype=int)
-        for i, (l, m, n) in enumerate(zip(self.l_arr_no_mask, self.m_arr_no_mask, self.n_arr_no_mask)):
-            self.negative_mode_indexes[i] = self.special_index_map[(l.item(), -m.item(), n.item())]
+        self.negative_mode_indexes = self.xp.linspace(
+            0, self.num_teuk_modes - 1, self.num_teuk_modes, dtype=int
+        )
+        for i, (l, m, n) in enumerate(
+            zip(self.l_arr_no_mask, self.m_arr_no_mask, self.n_arr_no_mask)
+        ):
+            self.negative_mode_indexes[i] = self.special_index_map[
+                (l.item(), -m.item(), n.item())
+            ]
 
     def sanity_check_viewing_angles(self, theta: float, phi: float):
         """Sanity check on viewing angles.
@@ -487,7 +480,7 @@ class SchwarzschildEccentric(SphericalHarmonic):
             test = val < 0.0
             if test:
                 raise ValueError("{} is negative. It must be positive.".format(key))
-            
+
         if m1 < m2:
             raise ValueError(
                 "Massive black hole mass must be larger than the compact object mass. (m1={}, m2={})".format(
@@ -601,7 +594,7 @@ class KerrEccentricEquatorial(SphericalHarmonic):
             test = val < 0.0
             if test:
                 raise ValueError("{} is negative. It must be positive.".format(key))
-        
+
         if m1 < m2:
             raise ValueError(
                 "Massive black hole mass must be larger than the compact object mass. (m1={}, m2={})".format(
@@ -760,14 +753,14 @@ class Pn5AAK(Citable):
             test = val < 0.0
             if test:
                 raise ValueError("{} is negative. It must be positive.".format(key))
-        
+
         if m1 < m2:
             raise ValueError(
                 "Massive black hole mass must be larger than the compact object mass. (m1={}, m2={})".format(
                     m1, m2
                 )
             )
-        
+
         if a < 0:
             # flip convention
             get_logger().warning(

@@ -1,23 +1,5 @@
 import numpy as np
 
-# try:
-#     import cupy as xp
-#     from .pydopr853 import dormandPrinceSteps as dormandPrinceSteps_gpu
-#     from .pydopr853 import error as error_gpu
-#     from .pydopr853 import controllerSuccess as controllerSuccess_gpu
-#     gpu_available = True
-#     from cupy.cuda.runtime import setDevice
-#     #setDevice(4)
-
-# except ModuleNotFoundError:
-#     import numpy as xp
-#     gpu_available = False
-
-"""from .pydopr853_cpu import dormandPrinceSteps as dormandPrinceSteps_cpu
-from .pydopr853_cpu import error as error_cpu
-from .pydopr853_cpu import controllerSuccess as controllerSuccess_cpu
-"""
-
 np.random.seed(5)
 
 # Tolerances
@@ -434,7 +416,8 @@ class DOPR853:
                     + er12 * k3
                 )
                 * sk
-            ) ** 2
+            )
+            ** 2
         ).sum(axis=0)
 
         # Now calculate the denominator and return the error

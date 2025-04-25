@@ -263,7 +263,7 @@ class FileManager:
             "Failed downloading '{}' after {} attempts per repository.".format(
                 file_name, self._options.download_max_attempts
             )
-        ) from exceptions.ExceptionGroup(
+        ) from exceptions.FewExceptionGroup(
             "File {} could not be downloaded from repositories {}".format(
                 file_name, [name for name in repository_names]
             ),
@@ -492,7 +492,7 @@ class FileManager:
         if errors:
             raise exceptions.FileManagerException(
                 "Some files could not be prefetch."
-            ) from exceptions.ExceptionGroup(
+            ) from exceptions.FewExceptionGroup(
                 "The following exceptions were raised while prefetching files.", errors
             )
 

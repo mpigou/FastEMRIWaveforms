@@ -1,7 +1,10 @@
 """Fast and accurate EMRI Waveforms."""
 
 try:
-    from few._version import __version__, __version_tuple__  # pylint: disable=E0401,E0611
+    from few._version import (  # pylint: disable=E0401,E0611
+        __version__,
+        __version_tuple__,
+    )
 
 except ModuleNotFoundError:
     from importlib.metadata import PackageNotFoundError, version  # pragma: no cover
@@ -23,16 +26,15 @@ try:
 except (ModuleNotFoundError, ImportError):
     _is_editable: bool = False
 
+from . import amplitude, cutils, files, summation, trajectory, utils, waveform
 from .utils.globals import (
-    get_logger,
     get_backend,
     get_config,
-    get_file_manager,
     get_config_setter,
+    get_file_manager,
+    get_logger,
     has_backend,
 )
-
-from . import amplitude, cutils, files, summation, trajectory, utils, waveform
 
 __all__ = [
     "__version__",

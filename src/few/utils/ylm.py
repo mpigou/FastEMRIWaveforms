@@ -1,30 +1,14 @@
-# Function for ylm generation for FastEMRIWaveforms Packages
+"""Function for ylm generation for FastEMRIWaveforms Packages"""
 
-# Copyright (C) 2020 Michael L. Katz, Alvin J.K. Chua, Niels Warburton, Scott A. Hughes
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from cmath import exp
+from math import cos, pow, sin, sqrt
+from math import pi as PI
+from typing import Optional, Union
 
 import numpy as np
-
-# base classes
-from ..utils.baseclasses import ParallelModuleBase
-
-from typing import Optional, Union
 from numba import njit
-from cmath import exp
-from math import pow, cos, sin, sqrt
-from math import pi as PI
+
+from .baseclasses import ParallelModuleBase
 
 I = 1j
 
@@ -315,7 +299,11 @@ class GetYlms(ParallelModuleBase):
 
     # These are the spin-weighted spherical harmonics with s=-2
     def __call__(
-        self, l_in: Union[int, np.ndarray], m_in: Union[int, np.ndarray], theta: float, phi: float
+        self,
+        l_in: Union[int, np.ndarray],
+        m_in: Union[int, np.ndarray],
+        theta: float,
+        phi: float,
     ) -> np.ndarray:
         """Call method for Ylms.
 
@@ -334,7 +322,7 @@ class GetYlms(ParallelModuleBase):
         if isinstance(l_in, int) or isinstance(m_in, int):
             assert isinstance(l_in, int) and isinstance(m_in, int)
             return _ylm_kernel_inner(l_in, m_in, theta, phi)
-            
+
         # if assuming positive m, repeat entries for negative m
         # this will duplicate m = 0
         if self.include_minus_m:

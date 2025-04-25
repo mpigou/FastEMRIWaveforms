@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import enum
 import os
+from typing import Dict, Iterator, List, Optional
+
 import pydantic
 
-from ..utils.exceptions import InvalidInputFile, FileInvalidChecksum, ExceptionGroup
-from typing import Dict, List, Optional, Iterator
+from ..utils.exceptions import FewExceptionGroup, FileInvalidChecksum, InvalidInputFile
 
 
 class Repository(pydantic.BaseModel):
@@ -80,7 +81,7 @@ class File(pydantic.BaseModel):
         if len(errors) > 1:
             raise FileInvalidChecksum(
                 "File has failed multiple integrity checks"
-            ) from ExceptionGroup(errors)
+            ) from FewExceptionGroup(errors)
 
 
 class FileRegistry(pydantic.BaseModel):
@@ -164,9 +165,10 @@ class FileRegistry(pydantic.BaseModel):
     @staticmethod
     def load_and_validate(registry_path: Optional[os.PathLike] = None) -> FileRegistry:
         import json
+        import pathlib
+
         import jsonschema
         import yaml
-        import pathlib
 
         try:
             from yaml import CLoader as Loader

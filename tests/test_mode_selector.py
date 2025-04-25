@@ -93,7 +93,11 @@ class ModeSelectorTest(FewBackendTest):
 
         modeinds = [amp.l_arr, amp.m_arr, amp.n_arr]
         (teuk_modes_in, ylms_in, ls, ms, ns) = mode_selector_noise_weighted(
-            teuk_modes, ylms, modeinds, fund_freq_args=fund_freq_args, mode_selection_threshold=eps
+            teuk_modes,
+            ylms,
+            modeinds,
+            fund_freq_args=fund_freq_args,
+            mode_selection_threshold=eps,
         )
 
         # print("We reduced the mode content from {} modes to {} modes when using noise-weighting.".format(teuk_modes.shape[1], teuk_modes_in.shape[1]))

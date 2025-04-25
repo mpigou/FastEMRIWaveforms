@@ -1,34 +1,16 @@
-# Interpolated summation of modes in python for the FastEMRIWaveforms Package
-
-# Copyright (C) 2020 Michael L. Katz, Alvin J.K. Chua, Niels Warburton, Scott A. Hughes
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Interpolated summation of modes in python for the FastEMRIWaveforms Package"""
 
 import numpy as np
 
-# Cython imports
-
-# Python imports
-from ..utils.baseclasses import (
-    SchwarzschildEccentric,
-    BackendLike,
-)
-from .base import SummationBase
-from ..utils.citations import REFERENCE
-from ..utils.geodesic import get_fundamental_frequencies
-from ..utils.constants import MTSUN_SI
 from ..summation.interpolatedmodesum import CubicSplineInterpolant
+from ..utils.baseclasses import (
+    BackendLike,
+    SchwarzschildEccentric,
+)
+from ..utils.citations import REFERENCE
+from ..utils.constants import MTSUN_SI
+from ..utils.geodesic import get_fundamental_frequencies
+from .base import SummationBase
 
 # for special functions
 
@@ -421,8 +403,6 @@ class FDInterpolatedModeSum(SummationBase, SchwarzschildEccentric):
                 (self.xp.arange(-(Len // 2), 0), self.xp.arange(0, (Len - 1) // 2 + 1))
             ) / (Len * dt)
 
-
-
         # make sure there is one value of frequency at 0.0
         assert 1 == np.sum(self.frequency == 0.0)
 
@@ -438,10 +418,18 @@ class FDInterpolatedModeSum(SummationBase, SchwarzschildEccentric):
         df = self.frequency[1] - self.frequency[0]
 
         # figures out where in self.frequency each segment frequency falls
-        inds_check = self.xp.abs((tmp_freqs_base_sorted_segs - first_frequency) / df).astype(int)
+        inds_check = self.xp.abs(
+            (tmp_freqs_base_sorted_segs - first_frequency) / df
+        ).astype(int)
         if f_arr is not None:
-            mask_pos = (tmp_freqs_base_sorted_segs > 0.0)
-            inds_check_pos = self.xp.abs((tmp_freqs_base_sorted_segs - self.frequency[ind_zero+1]) / df).astype(int) + ind_zero + 1
+            mask_pos = tmp_freqs_base_sorted_segs > 0.0
+            inds_check_pos = (
+                self.xp.abs(
+                    (tmp_freqs_base_sorted_segs - self.frequency[ind_zero + 1]) / df
+                ).astype(int)
+                + ind_zero
+                + 1
+            )
             inds_check[mask_pos] = inds_check_pos[mask_pos]
 
         # start frequency index of each segment
@@ -493,7 +481,7 @@ class FDInterpolatedModeSum(SummationBase, SchwarzschildEccentric):
             self.xp.asarray(phase_interp_coeffs), [2, 1, 0]
         ).flatten()
 
-        # for ylm with negative m, need to multiply by (-1)**l as this is assumed to have happened by the kernel
+        # for ylm with negative m, need to multiply by (-1)**l as this is assumed to have happened by the kernel
         ylms = ylms.copy()
         ylms[num_teuk_modes:] *= (-1) ** l_arr
 

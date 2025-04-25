@@ -1,45 +1,27 @@
-# Main waveform class location
-
-# Copyright (C) 2020 Michael L. Katz, Alvin J.K. Chua, Niels Warburton, Scott A. Hughes
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Main waveform class location"""
 
 import os
+from typing import Generic, Optional, Union
 
 import numpy as np
 
-from ..utils.baseclasses import (
-    SchwarzschildEccentric,
-    KerrEccentricEquatorial,
-    BackendLike,
-)
-from .base import AAKWaveformBase, SphericalHarmonicWaveformBase, WaveformModule
-
-from ..trajectory.inspiral import EMRIInspiral
 from ..amplitude.ampinterp2d import AmpInterpKerrEccEq, AmpInterpSchwarzEcc
-from ..utils.mappings.pn import xI_to_Y
 from ..amplitude.romannet import RomanAmplitude
-from ..utils.modeselector import ModeSelector, NeuralModeSelector
-from ..summation.directmodesum import DirectModeSum
 from ..summation.aakwave import AAKSummation
-from ..utils.constants import MRSUN_SI, Gpc
-from ..summation.interpolatedmodesum import InterpolatedModeSum
+from ..summation.directmodesum import DirectModeSum
 from ..summation.fdinterp import FDInterpolatedModeSum
-
-from ..trajectory.ode import KerrEccEqFlux, PN5, SchwarzEccFlux
-
-from typing import Union, Optional, Generic
+from ..summation.interpolatedmodesum import InterpolatedModeSum
+from ..trajectory.inspiral import EMRIInspiral
+from ..trajectory.ode import PN5, KerrEccEqFlux, SchwarzEccFlux
+from ..utils.baseclasses import (
+    BackendLike,
+    KerrEccentricEquatorial,
+    SchwarzschildEccentric,
+)
+from ..utils.constants import MRSUN_SI, Gpc
+from ..utils.mappings.pn import xI_to_Y
+from ..utils.modeselector import ModeSelector, NeuralModeSelector
+from .base import AAKWaveformBase, SphericalHarmonicWaveformBase, WaveformModule
 
 # get path to this file
 dir_path = os.path.dirname(os.path.realpath(__file__))

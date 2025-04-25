@@ -224,7 +224,7 @@ class ConfigConsumer(abc.ABC):
             raise (
                 errors[0]
                 if len(errors) == 1
-                else exceptions.ExceptionGroup(
+                else exceptions.FewExceptionGroup(
                     "Invalid configuration due to previous issues.", errors
                 )
             )

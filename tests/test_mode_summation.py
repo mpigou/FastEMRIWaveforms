@@ -72,10 +72,12 @@ class SummationTest(FewBackendTest):
 
         m1 = 1e6
         m2 = 1e1
-        nu = m1 * m2 / (m1 + m2)**2
-        traj = traj_module(m1, m2, 0.4, 20., 0.6, 1., T=0.1, err=1e-15)
+        nu = m1 * m2 / (m1 + m2) ** 2
+        _traj = traj_module(m1, m2, 0.4, 20.0, 0.6, 1.0, T=0.1, err=1e-15)
         t_spl = traj_module.inspiral_generator.integrator_t_cache
-        coeff_spl = traj_module.inspiral_generator.integrator_spline_coeff[:,[3,5],:] / nu
+        coeff_spl = (
+            traj_module.inspiral_generator.integrator_spline_coeff[:, [3, 5], :] / nu
+        )
 
         t_eval = np.linspace(0, t_spl[-1], 10001)
         dt = t_eval[1] - t_eval[0]

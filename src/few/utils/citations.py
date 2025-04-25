@@ -1,20 +1,3 @@
-# Collection of citations for modules in FastEMRIWaveforms package
-
-# Copyright (C) 2020 Michael L. Katz, Alvin J.K. Chua, Niels Warburton, Scott A. Hughes
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
 :code:`few.utils.citations`:
 
@@ -25,9 +8,11 @@ attribute.
 
 import abc
 import enum
+from typing import List, Optional, Union
+
 from pydantic import BaseModel
-from typing import Union, Optional, List
-from few.utils.exceptions import InvalidInputFile
+
+from .exceptions import InvalidInputFile
 
 
 class HyphenUnderscoreAliasModel(BaseModel):
@@ -272,11 +257,13 @@ class CitationRegistry:
 def build_citation_registry() -> CitationRegistry:
     """Read the package CITATION.cff and build the corresponding registry."""
     import json
-    import jsonschema
     import pathlib
+
+    import jsonschema
     import yaml
 
-    from few import __file__ as _few_root_file, _is_editable as is_editable
+    from few import __file__ as _few_root_file
+    from few import _is_editable as is_editable
 
     few_root = pathlib.Path(_few_root_file).parent
     cff_root = few_root.parent.parent if is_editable else few_root

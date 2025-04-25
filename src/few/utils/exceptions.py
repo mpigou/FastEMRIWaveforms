@@ -1,9 +1,11 @@
 """Definition of FEW package common exceptions"""
 
 try:
-    from exceptiongroup import ExceptionGroup
+    from exceptiongroup import ExceptionGroup as FewExceptionGroup
 except (ImportError, ModuleNotFoundError):
-    ExceptionGroup = ExceptionGroup
+    from builtins import ExceptionGroup as FewExceptionGroup
+
+FewExceptionGroup: type[Exception]
 
 
 class FewException(Exception):
@@ -93,3 +95,6 @@ class FileManagerDisabledAccess(FileManagerException):
 ### Trajectory-related exceptions
 class TrajectoryOffGridException(Exception):
     """Exception raised when a trajectory goes off-grid (except for the lower boundary in p)."""
+
+
+__all__ = ["FewException", "FewExceptionGroup"]
