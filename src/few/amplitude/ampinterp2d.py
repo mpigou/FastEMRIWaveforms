@@ -454,9 +454,9 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
                 raise ValueError("Amplitude interpolant accessed out-of-bounds.")
 
         if z_check in self.z_values:
-            try:
+            if self.backend.uses_cupy:
                 ind_1 = self.xp.where(self.z_values == z_check)[0].get()[0]
-            except:
+            else:
                 ind_1 = self.xp.where(self.z_values == z_check)[0][0]
 
             Amp_z = self.evaluate_interpolant_at_index(
@@ -464,9 +464,9 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
             )
 
         else:
-            try:
+            if self.backend.uses_cupy:
                 ind_above = self.xp.where(self.z_values > z_check)[0].get()[0]
-            except:
+            else:
                 ind_above = self.xp.where(self.z_values > z_check)[0][0]
             ind_below = ind_above - 1
             assert ind_above < len(self.z_values)
