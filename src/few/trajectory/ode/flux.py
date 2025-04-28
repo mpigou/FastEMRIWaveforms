@@ -23,7 +23,6 @@ from ...utils.mappings.kerrecceq import (
     _kerrecceq_flux_forward_map,
     apex_of_UWYZ,
     apex_of_uwyz,
-    e_of_uwz_flux,
     p_of_u_flux,
     u_of_p_flux,
     u_where_w_is_unity,
@@ -540,8 +539,8 @@ class KerrEccEqFlux(ODEBase):
             )
 
         z = z_of_a(a_in)
-        e_max_min = e_of_uwz_flux(0, 1, z)
-        p_sep_max_min = get_separatrix(a_in, e_max_min, 1)
+        # e_max_min = e_of_uwz_flux(0, 1, z)
+        # p_sep_max_min = get_separatrix(a_in, e_max_min, 1)
 
         p_min = self._min_p(EMAX, x, a)
         if p > p_min:
