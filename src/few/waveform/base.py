@@ -308,7 +308,7 @@ class SphericalHarmonicWaveformBase(
             t_temp = t[inds_in]
             p_temp = p[inds_in]
             e_temp = e[inds_in]
-            xI_temp = xI[inds_in]
+            # xI_temp = xI[inds_in]
             Phi_phi_temp = Phi_phi[inds_in]
             Phi_theta_temp = Phi_theta[inds_in]
             Phi_r_temp = Phi_r[inds_in]
@@ -424,13 +424,12 @@ class SphericalHarmonicWaveformBase(
                 **kwargs,
             )
 
-            # if batching, need to add the waveform
-            if i > 0:
-                waveform = self.xp.concatenate([waveform, waveform_temp])
-
-            # return entire waveform
-            else:
+            # If batching disabled or first batch, initialize waveform,
+            # otherwise, concatenate new batch to previous ones
+            if i == 0:
                 waveform = waveform_temp
+            else:
+                waveform = self.xp.concatenate([waveform, waveform_temp])  # noqa: F821
 
         return waveform / dist_dimensionless
 
