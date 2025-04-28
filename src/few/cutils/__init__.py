@@ -292,7 +292,7 @@ class _CudaBackend(Backend):
         import importlib
         import pathlib
 
-        from ..utils.exceptions import ExceptionGroup
+        from ..utils.exceptions import FewExceptionGroup
 
         try:
             nvidia_root = pathlib.Path(
@@ -336,7 +336,7 @@ class _CudaBackend(Backend):
                     for idx in failed_idx
                     if libs[idx].conda_pkg is not None
                 ],
-            ) from ExceptionGroup(
+            ) from FewExceptionGroup(
                 "Following exceptions were raised while trying to load NVidia libraries",
                 exceptions,
             )
@@ -755,13 +755,13 @@ class BackendsManager:
                     )
                 )
 
-        from ..utils.exceptions import ExceptionGroup
+        from ..utils.exceptions import FewExceptionGroup
 
         raise BackendAccessException(
             "Could not access any of the following backends which are either disabled or unavailable: {}".format(
                 ", ".join(backends)
             )
-        ) from ExceptionGroup(
+        ) from FewExceptionGroup(
             "The backends were not available for following reasons.", reasons
         )
 

@@ -14,19 +14,20 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
-import pathlib
+import importlib.metadata
 import os
-
-import few
+import pathlib
 
 # -- Project information -----------------------------------------------------
+few_metadata = importlib.metadata.metadata("fastemriwaveforms")
 
-project = "few: Fast EMRI Waveforms"
-copyright = "2020, Michael Katz, Alvin Chua, Niels Warburton"
-author = "Michael Katz, Alvin Chua, Niels Warburton"
+
+project = f"FEW: {few_metadata['Summary']}"
+author = few_metadata["Author"]
+copyright = f"2020-2025, {author}"
 
 # The full version, including alpha/beta/rc tags
-release = few.__version__
+release = few_metadata["Version"]
 
 
 # -- Copy example notebook --
@@ -95,7 +96,7 @@ intersphinx_mapping = {
 
 linkcheck_ignore = [r"https://dx.doi.org/"]
 
-myst_heading_anchors = 2
+myst_heading_anchors = 4
 myst_url_schemes = {
     "http": None,
     "https": None,
@@ -103,7 +104,7 @@ myst_url_schemes = {
     "ftp": None,
     "vscode": None,
 }
-
+myst_ref_domains = ["py", "std", "!std:2to3fixer"]
 
 nbsphinx_allow_errors = True
 nbsphinx_execute = "auto"

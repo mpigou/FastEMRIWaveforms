@@ -66,42 +66,50 @@ class RomanAmplitude(AmplitudeBase, SchwarzschildEccentric):
 
     """
 
-    def attributes_RomanAmplitude(self):
-        """
-        attributes:
-            few_dir (str): absolute path to the FastEMRIWaveforms directory
-            break_index (int): length of output vector from network divded by 2.
-                It is really the number of pairs of real and imaginary numbers.
-            neural_layer (obj): C++ class for computing neural network operations
-            transform_output(obj): C++ class for transforming output from
-                neural network in the reduced basis to the full amplitude basis.
-            num_teuk_modes (int): number of teukolsky modes in the data file.
-            transform_factor_inv (double): Inverse of the scalar transform factor.
-                For this model, that is 1000.0.
-            buffer_length (int): This class uses buffers. This is the maximum length
-                the user expects for the input arrays.
-            weights (list of xp.ndarrays): List of the weight matrices for each
-                layer of the neural network. They are flattened for entry into
-                C++ in column-major order. They have shape (dim1, dim2).
-            bias (list of xp.ndarrays): List of the bias arrays for each layer
-                of the neural network. They have shape (dim2,).
-            dim1 (list of int): List of 1st dimension length in each layer.
-            dim2 (list of int): List of 2nd dimension length in each layer.
-            num_layers (int): Number of layers in the neural network.
-            transform_matrix (2D complex128 xp.ndarray): Matrix for tranforming
-                output of neural network onto original amplitude basis.
-            max_num (int): Figures out the maximum dimension of all weight matrices
-                for buffers.
-            temp_mats (len-2 list of double xp.ndarrays): List that holds
-                temporary matrices for neural network evaluation. Each layer switches
-                between which is the input and output to properly interface with
-                cBLAS/cuBLAS.
-            run_relu_arr  (1D int xp.ndarray): Array holding information about
-                whether each layer will run the relu activation. All layers have
-                value 1, except for the last layer with value 0.
+    break_index: int
+    """length of output vector from network divded by 2. It is really the number
+    of pairs of real and imaginary numbers."""
 
-        """
-        pass
+    num_teuk_modes: int
+    """number of teukolsky modes in the data file."""
+
+    transform_factor_inv: float
+    """Inverse of the scalar transform factor. For this model, that is 1000.0."""
+
+    buffer_length: int
+    """This class uses buffers. This is the maximum length
+        the user expects for the input arrays."""
+
+    weights: list[np.ndarray]
+    """(list[xp.ndarray]) List of the weight matrices for each layer of the neural network. They
+    are flattened for entry into C++ in column-major order. They have shape
+    (dim1, dim2)."""
+
+    bias: list[np.ndarray]
+    """(list[xp.ndarray]) List of the bias arrays for each layer of the neural network. They have shape (dim2,)."""
+
+    dim1: list[int]
+    """List of 1st dimension length in each layer."""
+    dim2: list[int]
+    """List of 2nd dimension length in each layer."""
+    num_layers: int
+    """Number of layers in the neural network."""
+
+    transform_matrix: np.ndarray
+    """(2D complex128 xp.ndarray) Matrix for tranforming output of neural network onto original amplitude basis."""
+
+    max_num: int
+    """Figures out the maximum dimension of all weight matrices for buffers."""
+
+    temp_mats: np.ndarray
+    """(1D double xp.ndarray of size len-2) List that holds temporary matrices
+    for neural network evaluation. Each layer switches between which is the
+    input and output to properly interface with cBLAS/cuBLAS."""
+
+    run_relu_arr: np.ndarray
+    """(1D int xp.ndarray) Array holding information about
+        whether each layer will run the relu activation. All layers have
+        value 1, except for the last layer with value 0."""
 
     def __init__(self, buffer_length=1000, force_backend: BackendLike = None, **kwargs):
         AmplitudeBase.__init__(self)
@@ -138,10 +146,12 @@ class RomanAmplitude(AmplitudeBase, SchwarzschildEccentric):
 
     @property
     def neural_layer(self):
+        """C++ class for computing neural network operations"""
         return self.backend.neural_layer_wrap
 
     @property
     def transform_output(self):
+        """C++ class for transforming output from neural network in the reduced basis to the full amplitude basis."""
         return self.backend.transform_output_wrap
 
     @classmethod

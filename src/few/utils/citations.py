@@ -88,12 +88,12 @@ class ArticleReference(ReferenceABC):
         """
         Detect an arXiv identifier if any.
 
-        an arXiv identifier is:
-        - an identifier of type "other"
-        - which starts with "arxiv:" (case insensitive)
-        - whose second part is either:
-          - The arXiv reference (e.g. "arxiv:1912.07609")
-          - The primary class followed by '/' and the reference (e.g. "arxiv:gr-qc/1912.07609")
+        An arXiv identifier is:
+          - an identifier of type "other"
+          - which starts with "arxiv:" (case insensitive)
+          - whose second part is either:
+            - The arXiv reference (e.g. "arxiv:1912.07609")
+            - The primary class followed by '/' and the reference (e.g. "arxiv:gr-qc/1912.07609")
         """
         for identifier in self.identifiers:
             if identifier.type != "other":

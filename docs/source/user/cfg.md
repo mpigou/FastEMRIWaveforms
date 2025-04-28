@@ -78,24 +78,24 @@ The file manager is accessed through `few.get_file_manager()`
 
 This `FileManager` is highly tunable and propose the following options:
 
-#### `file_storage_path`
+#### file_storage_path
 
 The *storage path* is the directory where the `FileManager` will first look for files.
 
 Its default value is built relative to [`platformdirs.user_data_dir()`](https://github.com/tox-dev/platformdirs/blob/main/README.rst)
 (e.g. `~/.local/share/few/v1.5.1` on Linux systems)
 
-#### `file_download_path`
+#### file_download_path
 
 The *download path* is the directory where the `FileManager` will download missing files.
 By default, it is a subdirectory of the *storage path* named `download`.
 
-#### `file_extra_paths`
+#### `file_extra_paths
 
 Extra paths are supplementary read-only directories where the file manager will search for requested files.
 They are provided as a ";"-separated list of paths.
 
-#### `file_registry_path`
+#### file_registry_path`
 
 The *file registry* is a YAML file which lists known files which can be downloaded from FEW data repositories.
 It defines these data repositories and then, for each file, lists the repositories they can be found in, their tags and their checksums.
@@ -103,7 +103,7 @@ It defines these data repositories and then, for each file, lists the repositori
 A default `registry.yml` file is embedded with each version of `few` but one can provide a custom registry by setting its path
 through the `file_registry_path` option.
 
-#### `file_integrity_check`
+#### file_integrity_check
 
 By default, the first time a file is requested to the `FileManager`, its integrity is checked and cached so that future request to that
 file are fast.
@@ -116,7 +116,7 @@ The `file_integrity_check` option can thus take on the following values:
 - `once` (default): perform the integrity check once for the lifetime of the file manager
 - `never`: never check for integrity (even on download)
 
-#### `file_allow_download`
+#### file_allow_download
 
 If a file is requested but not found locally, the file manager can (and by default will) attempt to download it
 from data repositories defined in the file registry.
