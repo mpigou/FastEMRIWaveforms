@@ -1,5 +1,6 @@
 """Definition of type hints helpers for FEW"""
 
+import enum
 import inspect
 import textwrap
 import typing as t
@@ -18,117 +19,69 @@ class xp:
     ndarray = xp_ndarray
 
 
-input_at = t.Optional[t.Sequence[t.Union[int, str]]]
+class HintKind(enum.Flag):
+    NP = enum.auto()
+    """Hint contains np.ndarray"""
+
+    XP = enum.auto()
+    """Hint contains xp_ndarray"""
+
+    PLAIN = enum.auto()
+    """Hint is for a plain value"""
+
+    UNION = enum.auto()
+    """Hint is for a Union between multiple type including ndarray"""
+
+    LIST = enum.auto()
+    """Hint is for a list container of only ndarray values"""
+
+    DICT = enum.auto()
+    """Hint is for dict container of only ndarray values"""
+
+    NONE = 0
+    """Hint is neither of previous options"""
+
+    PLAIN_NP = PLAIN | NP  # np.ndarray
+    PLAIN_XP = PLAIN | XP  # xp_ndarray
+    UNION_NP_ONLY = UNION | NP  # t.Union[np.ndarray, ...]; t.Optional[np.ndarray]
+    UNION_XP_ONLY = UNION | XP  # t.Union[xp_ndarray, ...]; t.Optional[xp_ndarray]
+    UNION_MIX = UNION | NP | XP  # t.Union[np.ndarray, xp_ndarray, ...]
+
+    LIST_PURE_NP = LIST | PLAIN_NP  # list[np.ndarray]
+    LIST_PURE_XP = LIST | PLAIN_XP  # list[xp_ndarray]
+
+    DICT_PURE_NP = DICT | PLAIN_NP  # dict[t.Any, np.ndarray]
+    DICT_PURE_XP = DICT | PLAIN_XP  # dict[t.Any, xp_ndarray]
+
+
+InputKinds = t.Dict[str, HintKind]
 """
-Input np or xp array are either not set (None), set by args locations (int)
-or set by kwargs keys (str).
+Type for storing mapping of parameter name with their HintKind for auto_array.
 """
 
-output_is = t.Union[None, bool, t.Sequence[t.Union[None, bool]]]
+OutputKind = t.Union[None, HintKind, t.Sequence[HintKind]]
 """
 Output is:
-- None: not a np nor xp ndarray
-- False: a np.ndarray
-- True: a xp.ndarray
-- Sequence[None|bool]: a tuple whose n-th entry has type given by the sequence
-                       n-th value following previous rules
+- None: a value not interpretable by auto array
+- HintKind: a single value whose content can be interpreted by auto_array
+- Sequence[HintKind]: a tuple whose n-th entry has a kind given by the sequence
+                       n-th value (at least one element in the sequence must
+                       be a np or xp array)
 """
 
 
 def _are_auto_array_enabled() -> bool:
+    """
+    This method is called at import time to detect whether auto_array decorator
+    should be applied or completely skipped.
+
+    If the environment variable FEW_DISABLE_AUTO_ARRAY is set to **ANY** value,
+    then, the auto_array decorators are completely disabled, thus reducing their
+    impact on performances to zero.
+    """
     import os
 
     return os.getenv("FEW_DISABLE_AUTO_ARRAY", None) is None
-
-
-class _auto_array_decorator:
-    _input_np: input_at
-    _input_xp: input_at
-    _output: output_is
-
-    def __init__(
-        self,
-        input_np: input_at = None,
-        input_xp: input_at = None,
-        output: output_is = None,
-    ):
-        self._input_np = input_np
-        self._input_xp = input_xp
-        self._output = output
-
-    @wrapt.decorator(enabled=_are_auto_array_enabled)
-    def __call__(self, wrapped, instance, args, kwargs):
-        from few import get_logger
-
-        logger = get_logger()
-        logger.warning(
-            textwrap.dedent(f"""
-            Calling {wrapped.__name__} through auto_array decorator with
-                - input_np: {self._input_np}
-                - input_xp: {self._input_xp}
-                - output: {self._output}""")
-        )
-
-        return wrapped(*args, **kwargs)
-
-
-def _is_annotation_np(annotation: t.Any) -> bool:
-    return annotation is np_ndarray
-
-
-def _is_annotation_xp(annotation: t.Any) -> bool:
-    return annotation is xp_ndarray
-
-
-def _build_locations(index: int, param: inspect.Parameter) -> input_at:
-    if param.kind == param.POSITIONAL_ONLY:
-        return [index]
-    if param.kind == param.POSITIONAL_OR_KEYWORD:
-        return [index, param.name]
-    if param.kind == param.KEYWORD_ONLY:
-        return [param.name]
-    # We do not (yet?) support arrays transmitted via variaditc positionals or
-    # keyword parameters (*args or **kwargs)
-    return []
-
-
-def _detect_in_from_(sig: inspect.Signature) -> t.Tuple[input_at, input_at]:
-    np_at: input_at = []
-    xp_at: input_at = []
-
-    for idx, param in enumerate(sig.parameters.values()):
-        annotation = param.annotation
-        if annotation is inspect.Signature.empty:
-            continue
-        if _is_annotation_np(annotation):
-            np_at.extend(_build_locations(idx, param))
-        if _is_annotation_xp(annotation):
-            xp_at.extend(_build_locations(idx, param))
-
-    return np_at if np_at else None, xp_at if xp_at else None
-
-
-def _detect_out_from_(sig: inspect.Signature) -> output_is:
-    return_annotation = sig.return_annotation
-    if return_annotation is inspect.Signature.empty:
-        return None
-
-    if _is_annotation_np(return_annotation):
-        return False
-
-    if _is_annotation_xp(return_annotation):
-        return True
-
-    return None
-
-
-def _detect_wrapped_in_out(
-    wrapped: t.Callable,
-) -> t.Tuple[input_at, input_at, output_is]:
-    """Detect the in and output ndarray (np and xp) from a function type hints."""
-    signature = inspect.signature(wrapped, eval_str=True)
-
-    return *_detect_in_from_(signature), _detect_out_from_(signature)
 
 
 class FewTypingException(FewException):
@@ -140,10 +93,10 @@ class FewMissingTypeHintsExceptions(FewTypingException):
 
     wrapped: t.Callable
 
-    def __init__(self, wrapped: t.Callable):
+    def __init__(self, wrapped: t.Callable, signature: inspect.Signature):
         self.wrapped = wrapped
+        self.signature = signature
 
-        self.signature = inspect.signature(wrapped, eval_str=True)
         super().__init__(
             textwrap.dedent(f"""
     From "{inspect.getsourcefile(wrapped)}:{inspect.getsourcelines(wrapped)[1]}"):
@@ -153,18 +106,172 @@ class FewMissingTypeHintsExceptions(FewTypingException):
         )
 
 
+def annotation_to_hint_kind(annotation: t.Any) -> HintKind:
+    """Generic method to detect what HintKind corresponds to a given annotation"""
+    if annotation is inspect.Signature.empty:
+        return HintKind.NONE
+
+    if annotation is np_ndarray:
+        return HintKind.PLAIN_NP
+
+    if annotation is xp_ndarray:
+        return HintKind.PLAIN_XP
+
+    if t.get_origin(annotation) is t.Union:
+        args = t.get_args(annotation)
+        hint = HintKind.UNION
+        if np_ndarray in args:
+            hint |= HintKind.NP
+        if xp_ndarray in args:
+            hint |= HintKind.XP
+        if hint == HintKind.UNION:
+            """The Union does not contain np or xp array"""
+            return HintKind.NONE
+        return hint
+
+    if t.get_origin(annotation) is list:
+        args = t.get_args(annotation)
+        if args[0] is np_ndarray:
+            return HintKind.LIST_PURE_NP
+        if args[0] is xp_ndarray:
+            return HintKind.LIST_PURE_XP
+        return HintKind.NONE
+
+    if t.get_origin(annotation) is dict:
+        args = t.get_args(annotation)
+        if args[1] is np_ndarray:
+            return HintKind.DICT_PURE_NP
+        if args[1] is xp_ndarray:
+            return HintKind.DICT_PURE_XP
+        return HintKind.NONE
+
+    return HintKind.NONE
+
+
+def _detect_input_kinds_from_(signature: inspect.Signature) -> InputKinds:
+    """Build a mapping of parameter names to hint kind"""
+    return {
+        param.name: annotation_to_hint_kind(param.annotation)
+        for param in signature.parameters.values()
+    }
+
+
+def _detect_output_kind_from_(signature: inspect.Signature) -> OutputKind:
+    """Detect the hint kind of return type hint"""
+    return_annotation = signature.return_annotation
+
+    if t.get_origin(return_annotation) is tuple:
+        output_kinds = [
+            annotation_to_hint_kind(hint) for hint in t.get_args(return_annotation)
+        ]
+        if any((kind != HintKind.NONE for kind in output_kinds)):
+            return output_kinds
+        return None
+
+    output_kind = annotation_to_hint_kind(return_annotation)
+
+    return None if output_kind == HintKind.NONE else output_kind
+
+
+def _detect_wrapped_in_out(
+    signature: inspect.Signature,
+) -> t.Tuple[InputKinds, OutputKind]:
+    """Detect the in and output ndarray (np and xp) from a function type hints."""
+    return _detect_input_kinds_from_(signature), _detect_output_kind_from_(signature)
+
+
+class _auto_array_decorator:
+    _signature: inspect.Signature
+    _input_kinds: InputKinds
+    _output_kind: OutputKind
+
+    def __init__(self, wrapped: t.Callable):
+        if not _are_auto_array_enabled():
+            return
+
+        self._signature = inspect.signature(wrapped, eval_str=True)
+
+        input_kinds, output_kind = _detect_wrapped_in_out(self._signature)
+
+        if (
+            not any(
+                (input_kind != HintKind.NONE) for input_kind in input_kinds.values()
+            )
+        ) and (output_kind is None):
+            raise FewMissingTypeHintsExceptions(
+                wrapped=wrapped, signature=self._signature
+            )
+
+        self._input_kinds = input_kinds
+        self._output_kind = output_kind
+
+    @wrapt.decorator
+    def __call__(self, wrapped, instance, args, kwargs):
+        from few import get_logger
+
+        logger = get_logger()
+        logger.warning(
+            textwrap.dedent(f"""
+            Calling {wrapped.__name__} (from {inspect.getsourcefile(wrapped)}:{inspect.getsourcelines(wrapped)[1]}) through auto_array decorator with
+                - input_kinds: {self._input_kinds}
+                - output_kind: {self._output_kind}""")
+        )
+
+        xp = self.__detect_xp(instance, kwargs)
+        logger.warning(f"xp is detected to be '{xp}'")
+
+        p_args, p_kwargs = self.__process_inputs(xp, instance, args, kwargs)
+
+        if instance is not None:
+            p_args = p_args[1:]
+
+        out = wrapped(*p_args, **p_kwargs)
+
+        p_out = self.__process_output(xp, out)
+
+        return p_out
+
+    def __detect_xp(self, instance, kwargs):
+        """
+        Detect the xp module associated to a decorated function call
+        """
+        if hasattr(instance, "xp"):
+            return getattr(instance, "xp")
+
+        if "use_gpu" in kwargs:
+            if kwargs["use_gpu"]:
+                import cupy
+
+                return cupy
+            import numpy
+
+            return numpy
+
+    def __process_inputs(self, xp, instance, args, kwargs):
+        """Process given postional and keyword arguments for a specific xp module."""
+        # 1 - Bind input arguments to function signature
+        if instance is None:
+            bound_args = self._signature.bind(*args, **kwargs)
+        else:
+            bound_args = self._signature.bind(instance, *args, **kwargs)
+
+        bound_args.apply_defaults()
+
+        # 2 - Iterate over arguments to process and update them if necessary
+
+        # 3 - Return resulting arguments
+        return bound_args.args, bound_args.kwargs
+
+    def __process_output(self, xp, out):
+        """Process result output for a specific xp module"""
+        return out
+
+
 def auto_array(wrapped):
     if not _are_auto_array_enabled():
         return wrapped
 
-    input_np, input_xp, output = _detect_wrapped_in_out(wrapped)
-
-    if (input_np is None) and (input_xp is None) and (output is None):
-        raise FewMissingTypeHintsExceptions(wrapped=wrapped)
-
-    return _auto_array_decorator(input_np=input_np, input_xp=input_xp, output=output)(
-        wrapped
-    )
+    return _auto_array_decorator(wrapped)(wrapped)
 
 
 __all__ = [xp, xp_ndarray, auto_array]
