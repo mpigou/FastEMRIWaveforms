@@ -25,6 +25,7 @@ from typing import (
 
 from ..cutils import KNOWN_BACKENDS
 from . import exceptions
+from .typing import AutoArrayMode
 
 
 class ConfigSource(enum.Enum):
@@ -553,6 +554,7 @@ class Configuration(ConfigConsumer):
     file_extra_paths: List[pathlib.Path]
     file_disabled_tags: Optional[List[str]]
     enabled_backends: Optional[List[str]]
+    auto_array_mode: AutoArrayMode
 
     @staticmethod
     def config_entries() -> List[ConfigEntry]:
@@ -675,6 +677,15 @@ class Configuration(ConfigConsumer):
                 validate=lambda x: all(v in KNOWN_BACKENDS for v in x)
                 if x is not None
                 else True,
+            ),
+            ConfigEntry(
+                label="auto_array_mode",
+                description="Mode for @auto_array decorator",
+                type=AutoArrayMode,
+                default=AutoArrayMode.DEFAULT,
+                env_var="AUTO_ARRAY_MODE",
+                convert=lambda x: AutoArrayMode._value2member_map_[x.lower()],
+                validate=lambda x: isinstance(x, AutoArrayMode),
             ),
         ]
 

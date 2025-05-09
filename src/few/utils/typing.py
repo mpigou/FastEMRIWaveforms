@@ -1,7 +1,10 @@
 """Definition of type hints helpers for FEW"""
 
+from __future__ import annotations
+
 import enum
 import inspect
+import logging
 import textwrap
 import typing as t
 
@@ -11,12 +14,59 @@ from numpy import ndarray as np_ndarray
 from .exceptions import FewException
 
 
+class FewTypingException(FewException):
+    """Base class for few.utils.typing exceptions"""
+
+
+class FewMissingTypeHintsExceptions(FewTypingException):
+    """Function is decorated with auto_array but does not have type hints for the input and output ndarrays."""
+
+    wrapped: t.Callable
+
+    def __init__(self, wrapped: t.Callable, signature: inspect.Signature):
+        self.wrapped = wrapped
+        self.signature = signature
+
+        super().__init__(
+            textwrap.dedent(f"""
+    From "{inspect.getsourcefile(wrapped)}:{inspect.getsourcelines(wrapped)[1]}"):
+        Function {wrapped.__name__} is decorated with @auto_array but does not
+        have type hints for the input and output ndarrays.
+        It's signature is {self.signature}.""")
+        )
+
+
+class FewAutoArrayInvalidTarget(FewTypingException):
+    """Auto-array applied to invalid object."""
+
+
+class FewAutoArrayInvalidConversion(FewTypingException):
+    """Value cannot be converted into target type."""
+
+
+class AutoArrayMode(enum.Enum):
+    """Enumeration of modes defining the behaviour or @auto_array decorator."""
+
+    NOOP = "noop"
+    """Does nothing"""
+
+    WARN = "warn"
+    """Raise warning when unexpected array types are encountered, do not convert"""
+
+    RAISE = "raise"
+    """Raise an exception when unexpected array types are encountered"""
+
+    ENFORCE = "enforce"
+    """Convert any input/output type to the expected type"""
+
+    NUMPY = "numpy"
+    """Convert all function outputs to np.ndarray and all inputs to their expected type"""
+
+    DEFAULT = NOOP
+
+
 class xp_ndarray(np_ndarray):
     pass
-
-
-class xp:
-    ndarray = xp_ndarray
 
 
 class HintKind(enum.Flag):
@@ -53,6 +103,39 @@ class HintKind(enum.Flag):
     DICT_PURE_NP = DICT | PLAIN_NP  # dict[t.Any, np.ndarray]
     DICT_PURE_XP = DICT | PLAIN_XP  # dict[t.Any, xp_ndarray]
 
+    def as_np_variant(self) -> HintKind:
+        """Convert a xp or mix hint kind to np variant."""
+        return self ^ HintKind.XP | HintKind.NP
+
+    def isa(self, value: t.Any, xp) -> bool:
+        """Check if a value matched the hint"""
+        if self & HintKind.DICT:
+            return isinstance(value, dict) and all(
+                isinstance(v, np_ndarray if (self & HintKind.NP) else xp.ndarray)
+                for v in value.values()
+            )
+
+        if self & HintKind.LIST:
+            return isinstance(value, list) and all(
+                isinstance(v, np_ndarray if (self & HintKind.NP) else xp.ndarray)
+                for v in value
+            )
+
+        if isinstance(value, np_ndarray):
+            return (self & (HintKind.PLAIN | HintKind.UNION)) and (self & HintKind.NP)
+
+        if isinstance(value, xp.ndarray):
+            return (self & (HintKind.PLAIN | HintKind.UNION)) and (self & HintKind.XP)
+
+        return False
+
+    def convert_into(self, value: t.Any, xp):
+        """Convert arrays from a value into self type"""
+        raise NotImplementedError
+        # Convert from any np/xp ndarray into self type
+        # Warning: when converting from xp to np, remember that .get() calls
+        # might be necessary (if xp is not np)
+
 
 InputKinds = t.Dict[str, HintKind]
 """
@@ -82,28 +165,6 @@ def _are_auto_array_enabled() -> bool:
     import os
 
     return os.getenv("FEW_DISABLE_AUTO_ARRAY", None) is None
-
-
-class FewTypingException(FewException):
-    """Base class for few.utils.typing exceptions"""
-
-
-class FewMissingTypeHintsExceptions(FewTypingException):
-    """Function is decorated with auto_array but does not have type hints for the input and output ndarrays."""
-
-    wrapped: t.Callable
-
-    def __init__(self, wrapped: t.Callable, signature: inspect.Signature):
-        self.wrapped = wrapped
-        self.signature = signature
-
-        super().__init__(
-            textwrap.dedent(f"""
-    From "{inspect.getsourcefile(wrapped)}:{inspect.getsourcelines(wrapped)[1]}"):
-        Function {wrapped.__name__} is decorated with @auto_array but does not
-        have type hints for the input and output ndarrays.
-        It's signature is {self.signature}.""")
-        )
 
 
 def annotation_to_hint_kind(annotation: t.Any) -> HintKind:
@@ -180,6 +241,58 @@ def _detect_wrapped_in_out(
     return _detect_input_kinds_from_(signature), _detect_output_kind_from_(signature)
 
 
+def __process_value_convert(xp, value, kind: HintKind) -> t.Any:
+    pass
+
+
+def __process_value_log_convert(
+    xp, value, kind: HintKind, level, convert: bool
+) -> t.Any:
+    from few import get_logger
+
+    matches: bool = kind.isa(value, xp)
+    if matches:
+        return value
+
+    get_logger().log(
+        level,
+        "  parameter '%s' is not of expected type.",
+    )
+
+    pass
+
+
+def __process_value(
+    xp, value, kind: HintKind, mode: AutoArrayMode, input: bool
+) -> t.Any:
+    """
+    Process a single input or output value according to its hint kind and current mode
+
+    This method will compare a value type with its expected type and act based
+    on the result and current mode.
+    It will return a value that must be passed as input to the wrapped function,
+    or returned as output of that function.
+    """
+    if mode == AutoArrayMode.WARN:
+        return __process_value_log_convert(
+            xp, value, kind, level=logging.WARNING, convert=False
+        )
+    if mode == AutoArrayMode.RAISE:
+        return __process_value_log_convert(
+            xp, value, kind, level=logging.FATAL, convert=False
+        )
+    if mode == AutoArrayMode.ENFORCE:
+        return __process_value_log_convert(
+            xp, value, kind, level=logging.DEBUG, convert=True
+        )
+    if mode == AutoArrayMode.NUMPY:
+        if input:
+            return __process_value_convert(xp, value, kind)
+        return __process_value_convert(xp, value, kind ^ HintKind.XP | HintKind.NP)
+
+    return value
+
+
 class _auto_array_decorator:
     _signature: inspect.Signature
     _input_kinds: InputKinds
@@ -188,6 +301,12 @@ class _auto_array_decorator:
     def __init__(self, wrapped: t.Callable):
         if not _are_auto_array_enabled():
             return
+
+        if (not inspect.isfunction(wrapped)) and (not inspect.ismethod(wrapped)):
+            raise FewAutoArrayInvalidTarget(
+                "@auto_array decorator should only "
+                "be applied on free-functions or bound methods"
+            )
 
         self._signature = inspect.signature(wrapped, eval_str=True)
 
@@ -207,7 +326,7 @@ class _auto_array_decorator:
 
     @wrapt.decorator
     def __call__(self, wrapped, instance, args, kwargs):
-        from few import get_logger
+        from few import get_config, get_logger
 
         logger = get_logger()
         logger.warning(
@@ -217,13 +336,18 @@ class _auto_array_decorator:
                 - output_kind: {self._output_kind}""")
         )
 
+        mode = get_config().auto_array_mode
+
+        if mode == AutoArrayMode.NOOP:
+            # Shortcut in no-op mode
+            return wrapped(*args, **kwargs)
+
         xp = self.__detect_xp(instance, kwargs)
-        logger.warning(f"xp is detected to be '{xp}'")
+        logger.warning(f"xp is detected to be '{xp.__name__}'")
 
-        p_args, p_kwargs = self.__process_inputs(xp, instance, args, kwargs)
-
-        if instance is not None:
-            p_args = p_args[1:]
+        p_args, p_kwargs = self.__process_inputs(
+            xp, args, kwargs, fake_self=instance is not None
+        )
 
         out = wrapped(*p_args, **p_kwargs)
 
@@ -247,31 +371,55 @@ class _auto_array_decorator:
 
             return numpy
 
-    def __process_inputs(self, xp, instance, args, kwargs):
+    def __process_inputs(self, xp, args, kwargs, fake_self: bool, mode: AutoArrayMode):
         """Process given postional and keyword arguments for a specific xp module."""
         # 1 - Bind input arguments to function signature
-        if instance is None:
-            bound_args = self._signature.bind(*args, **kwargs)
-        else:
-            bound_args = self._signature.bind(instance, *args, **kwargs)
-
+        bound_args = (
+            self._signature.bind(None, *args, **kwargs)
+            if fake_self
+            else self._signature.bind(*args, **kwargs)
+        )
         bound_args.apply_defaults()
 
         # 2 - Iterate over arguments to process and update them if necessary
+        for param_name, param_kind in self._input_kinds.items():
+            bound_args.arguments[param_name] = self.__process_value(
+                xp=xp,
+                value=bound_args.arguments[param_name],
+                kind=param_kind,
+                mode=mode,
+                input=True,
+            )
 
         # 3 - Return resulting arguments
-        return bound_args.args, bound_args.kwargs
+        return bound_args.args[1:] if fake_self else bound_args.args, bound_args.kwargs
 
-    def __process_output(self, xp, out):
+    def __process_output(self, xp, out, output_kind: OutputKind, mode: AutoArrayMode):
         """Process result output for a specific xp module"""
-        return out
+        if output_kind is None:
+            return out
+
+        if output_kind is HintKind:
+            return __process_value(xp=xp, value=out, kind=output_kind, mode=mode)
+
+        return tuple(
+            __process_value(xp=xp, value=o, kind=k, mode=mode, input=False)
+            for o, k in zip(out, output_kind)
+        )
 
 
 def auto_array(wrapped):
     if not _are_auto_array_enabled():
+        # shortcut that disables applying the decorator through global configuration
         return wrapped
 
+    # The following "(wrapped)(wrapped)" call is no typo.
+    # The first call builds a _auto_array_decorator instance which analyses
+    #  "wrapped" signature to determine how its input parameter and output should
+    #  be typed.
+    # The second call decorates "wrapped" using a wrapt.decorator which will
+    #  intercept args, kwargs and out at runtime and apply the requested mode.
     return _auto_array_decorator(wrapped)(wrapped)
 
 
-__all__ = [xp, xp_ndarray, auto_array]
+__all__ = [xp_ndarray, auto_array]
