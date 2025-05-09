@@ -155,6 +155,8 @@ few = "src/few"       #@SKIP_PLUGIN@
 
 [tool.ruff]
 
+target-version = "py312"
+
 extend-include = [
   "!*.py",
   # Enable Ruff on a white-list approach for now

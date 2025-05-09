@@ -16,30 +16,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from copy import deepcopy
 import os
 import pathlib
+from copy import deepcopy
+from typing import List, Optional, Union
 
-import numpy as np
 import h5py
+import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
 # Cython/C++ imports
-
 # Python imports
 from ..utils.baseclasses import (
-    SchwarzschildEccentric,
-    ParallelModuleBase,
-    KerrEccentricEquatorial,
-    xp_ndarray,
     BackendLike,
+    KerrEccentricEquatorial,
+    ParallelModuleBase,
+    SchwarzschildEccentric,
 )
-from .base import AmplitudeBase
 from ..utils.citations import REFERENCE
 from ..utils.mappings.kerrecceq import kerrecceq_forward_map
 from ..utils.mappings.schwarzecc import schwarzecc_p_to_y
-
-from typing import List, Optional, Union
+from ..utils.typing import auto_array, xp_ndarray
+from .base import AmplitudeBase
 
 # get path to this file
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -119,6 +117,7 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
     len_indiv_c: int
     """Total number of coefficients per mode amplitude grid."""
 
+    @auto_array
     def __init__(
         self,
         w_knots: np.ndarray,
@@ -169,6 +168,7 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
     def supported_backends(cls):
         return cls.GPU_RECOMMENDED()
 
+    @auto_array
     def __call__(
         self,
         w: Union[float, xp_ndarray],
@@ -187,8 +187,8 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
         Returns:
             Complex Teukolsky mode amplitudes at the requested points.
         """
-        w = self.xp.asarray(w)
-        u = self.xp.asarray(u)
+        w: xp_ndarray = self.xp.asarray(w)
+        u: xp_ndarray = self.xp.asarray(u)
 
         tw, tu = self.knots
         c = self.coeff
@@ -348,13 +348,14 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
 
         return z_out
 
+    @auto_array
     def get_amplitudes(
-        self, 
-        a: float, 
-        p: Union[float, np.ndarray], 
-        e: Union[float, np.ndarray], 
-        xI: Union[float, np.ndarray], 
-        specific_modes: Optional[Union[list, np.ndarray]]=None
+        self,
+        a: float,
+        p: Union[float, np.ndarray],
+        e: Union[float, np.ndarray],
+        xI: Union[float, np.ndarray],
+        specific_modes: Optional[Union[list, np.ndarray]] = None,
     ) -> Union[dict, np.ndarray]:
         """
         Generate Teukolsky amplitudes for a given set of parameters.
@@ -387,16 +388,20 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
         xI = self.xp.atleast_1d(xI)
 
         lengths = [len(arr) for arr in (a, p, e, xI)]
-        non_one_lengths = {l for l in lengths if l > 1}  # Collect lengths greater than 1
-    
-        assert len(non_one_lengths) <= 1, f"Arrays must be length one or, if larger, have the same length. Found lengths: {lengths}"
+        non_one_lengths = {
+            l for l in lengths if l > 1
+        }  # Collect lengths greater than 1
+
+        assert len(non_one_lengths) <= 1, (
+            f"Arrays must be length one or, if larger, have the same length. Found lengths: {lengths}"
+        )
 
         assert np.all(a == a[0]), "All spins must be the same value."
 
-        assert np.all(a*xI <= 0.0) or np.all(
-            a*xI >= 0.0
+        assert np.all(a * xI <= 0.0) or np.all(
+            a * xI >= 0.0
         )  # either all prograde or all retrograde
-        assert self.xp.all(self.xp.abs(xI) == 1.0) # all equatorial
+        assert self.xp.all(self.xp.abs(xI) == 1.0)  # all equatorial
 
         # symmetry of flipping the sign of the spin to keep xI positive
         if self.xp.all(xI < 0.0):
@@ -416,7 +421,7 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
                 specific_modes_arr = self.xp.asarray(specific_modes)
                 mode_indexes = self.special_index_map_arr[
                     specific_modes_arr[:, 0],
-                    m_mode_sign*specific_modes_arr[:, 1],
+                    m_mode_sign * specific_modes_arr[:, 1],
                     specific_modes_arr[:, 2],
                 ]
                 if self.xp.any(mode_indexes == -1):
@@ -435,7 +440,7 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
                 mode_indexes = self.mode_indexes
             self.num_modes_eval = self.num_teuk_modes
 
-        try:
+        if self.backend.uses_cupy:
             u, w, y, z, region_mask = kerrecceq_forward_map(
                 a_in.get(),
                 p.get(),
@@ -444,8 +449,8 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
                 return_mask=True,
                 kind="amplitude",
             )
-            
-        except AttributeError:
+
+        else:
             u, w, y, z, region_mask = kerrecceq_forward_map(
                 a_in,
                 p,
@@ -455,21 +460,21 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
                 kind="amplitude",
             )
         z_check = z[0].item()
-        
+
         region_mask = self.xp.asarray(region_mask)
         u = self.xp.asarray(u)
         w = self.xp.asarray(w)
         z = self.xp.asarray(z)
         self.z_values = self.xp.asarray(self.z_values)
-        
+
         for elem in [u, w, z]:
             if self.xp.any((elem < 0) | (elem > 1)):
                 raise ValueError("Amplitude interpolant accessed out-of-bounds.")
 
         if z_check in self.z_values:
-            try:
+            if self.backend.uses_cupy:
                 ind_1 = self.xp.where(self.z_values == z_check)[0].get()[0]
-            except:
+            else:
                 ind_1 = self.xp.where(self.z_values == z_check)[0][0]
 
             Amp_z = self.evaluate_interpolant_at_index(
@@ -477,9 +482,9 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
             )
 
         else:
-            try:
+            if self.backend.uses_cupy:
                 ind_above = self.xp.where(self.z_values > z_check)[0].get()[0]
-            except:
+            else:
                 ind_above = self.xp.where(self.z_values > z_check)[0][0]
             ind_below = ind_above - 1
             assert ind_above < len(self.z_values)
@@ -510,15 +515,15 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
             temp = {}
             for i, lmn in enumerate(specific_modes):
                 l, m, n = lmn
-                temp[(l,m,n)] = Amp_z[:, i]
+                temp[(l, m, n)] = Amp_z[:, i]
 
                 # apply xI flip symmetry
                 if m_mode_sign < 0:
-                    temp[(l,m,n)] = (-1)**l * temp[(l,m,n)]
+                    temp[(l, m, n)] = (-1) ** l * temp[(l, m, n)]
 
                 # apply +/- m symmetry
-                if m_mode_sign*m < 0:
-                    temp[(l,m,n)] = (-1)**l * self.xp.conj(temp[(l,m,n)])
+                if m_mode_sign * m < 0:
+                    temp[(l, m, n)] = (-1) ** l * self.xp.conj(temp[(l, m, n)])
 
             return temp
         # dict containing requested modes
@@ -530,11 +535,11 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
 
                 # apply xI flip symmetry
                 if m_mode_sign < 0:
-                    temp[lmn] = (-1)**l * temp[lmn]
+                    temp[lmn] = (-1) ** l * temp[lmn]
 
                 # apply +/- m symmetry
-                if m_mode_sign*m < 0:
-                    temp[lmn] = (-1)**l * self.xp.conj(temp[lmn])
+                if m_mode_sign * m < 0:
+                    temp[lmn] = (-1) ** l * self.xp.conj(temp[lmn])
 
             return temp
 
@@ -663,9 +668,15 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
         """GPU or CPU interp2D"""
         return self.backend.interp2D
 
+    @auto_array
     def get_amplitudes(
-        self, a, p, e, xI, specific_modes=None
-    ) -> Union[dict, np.ndarray]:
+        self,
+        a: float,
+        p: Union[float, xp_ndarray],
+        e: Union[float, xp_ndarray],
+        xI: np.ndarray,
+        specific_modes=None,
+    ) -> Union[dict, xp_ndarray]:
         """
         Generate Teukolsky amplitudes for a given set of parameters.
 

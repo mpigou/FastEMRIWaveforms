@@ -1,6 +1,14 @@
+import typing as t
+
 import numpy as np
 
-def schwarzecc_p_to_y(p, e, use_gpu=False):
+from ..typing import auto_array, xp_ndarray
+
+
+@auto_array
+def schwarzecc_p_to_y(
+    p: t.Union[float, xp_ndarray], e: t.Union[float, xp_ndarray], *, use_gpu=False
+):
     """Convert from separation :math:`p` to :math:`y` coordinate
 
     Conversion from the semilatus rectum or separation :math:`p` to :math:`y`.

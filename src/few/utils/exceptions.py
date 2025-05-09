@@ -1,9 +1,11 @@
 """Definition of FEW package common exceptions"""
 
-try:
-    from exceptiongroup import ExceptionGroup
-except (ImportError, ModuleNotFoundError):
+import sys
+
+if sys.version_info >= (3, 11):
     ExceptionGroup = ExceptionGroup
+else:
+    from exceptiongroup import ExceptionGroup  # noqa
 
 
 class FewException(Exception):

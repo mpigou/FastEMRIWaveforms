@@ -15,24 +15,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
-import numpy as np
-from scipy.optimize import brentq
-
-from numba import njit
-from math import sqrt, cos, acos
-
-from few.utils.exceptions import TrajectoryOffGridException
-
-from few.utils.globals import get_logger, get_first_backend
-
-from .constants import YRSID_SI, PI
-
+from math import acos, cos, sqrt
 from typing import Optional
 
+import numpy as np
+from numba import njit
+from scipy.optimize import brentq
 
+from few.utils.exceptions import TrajectoryOffGridException
+from few.utils.globals import get_first_backend, get_logger
+
+from .constants import PI, YRSID_SI
+from .typing import auto_array, xp_ndarray
+
+
+@auto_array
 def get_overlap(
-    time_series_1: np.ndarray, time_series_2: np.ndarray, use_gpu: bool = False
+    time_series_1: xp_ndarray, time_series_2: xp_ndarray, use_gpu: bool = False
 ) -> float:
     r"""Calculate the overlap.
 
@@ -93,8 +92,9 @@ def get_overlap(
     return ac.item().real if use_gpu else ac.real
 
 
+@auto_array
 def get_mismatch(
-    time_series_1: np.ndarray, time_series_2: np.ndarray, use_gpu: bool = False
+    time_series_1: xp_ndarray, time_series_2: xp_ndarray, use_gpu: bool = False
 ) -> float:
     """Calculate the mismatch.
 
@@ -163,7 +163,7 @@ def _solveCubic(A2, A1, A0):
         root1 = 2.0 * r * cos(theta / 3.0) - b / (3.0 * a)
         root2 = 2.0 * r * cos((theta + 2.0 * PI) / 3.0) - b / (3.0 * a)
         root3 = 2.0 * r * cos((theta - 2.0 * PI) / 3.0) - b / (3.0 * a)
-        
+
         ra = root1
         rp = root3
         r3 = root2
@@ -172,6 +172,7 @@ def _solveCubic(A2, A1, A0):
     # cout << "ra: " << *ra << endl
     # cout << "rp: " << *rp << endl
     # cout << "r3: " << *r3 << endl
+
 
 @njit(fastmath=False)
 def _brentq_jit(f, a, b, args, tol):
@@ -253,6 +254,7 @@ def _brentq_jit(f, a, b, args, tol):
             fc = fa
             d = b - a
             e = d
+
 
 def get_at_t(
     traj_module: object,
@@ -409,15 +411,26 @@ def get_p_at_t(
     if bounds[1] == float("inf"):
         bounds[1] = upper_bound_maximum
 
-    # With the varying bounds of eccentricity used for KerrEccEqFlux, 
+    # With the varying bounds of eccentricity used for KerrEccEqFlux,
     # it is possible to have no solution within the bounds of the interpolants
     # It might also be possible for the trajectory to evolve off of the grid
     while bounds[0] < bounds[1]:
         try:
-            traj_pars = [traj_args[0],traj_args[1],traj_args[index_of_a], bounds[0],traj_args[index_of_e],traj_args[index_of_x]]
-            t, p, e, xI, Phi_phi, Phi_theta, Phi_r = traj_module(*traj_pars, T=t_out*1.001)
-            if t[-1] >= t_out*YRSID_SI:
-                raise ValueError("No solution found within the bounds of the interpolants.")
+            traj_pars = [
+                traj_args[0],
+                traj_args[1],
+                traj_args[index_of_a],
+                bounds[0],
+                traj_args[index_of_e],
+                traj_args[index_of_x],
+            ]
+            t, p, e, xI, Phi_phi, Phi_theta, Phi_r = traj_module(
+                *traj_pars, T=t_out * 1.001
+            )
+            if t[-1] >= t_out * YRSID_SI:
+                raise ValueError(
+                    "No solution found within the bounds of the interpolants."
+                )
             break
         except TrajectoryOffGridException:
             # Trajectory is off the grid
@@ -477,17 +490,30 @@ def get_m2_at_t(
         bounds[1] = traj_args[0]
 
     # Check lower bound
-    traj_pars = [traj_args[0],bounds[0],traj_args[1], traj_args[2],traj_args[3],traj_args[4]]
-    t, p, e, xI, Phi_phi, Phi_theta, Phi_r = traj_module(*traj_pars, T=t_out*1.001)
-    if t[-1] <= t_out*YRSID_SI:
+    traj_pars = [
+        traj_args[0],
+        bounds[0],
+        traj_args[1],
+        traj_args[2],
+        traj_args[3],
+        traj_args[4],
+    ]
+    t, p, e, xI, Phi_phi, Phi_theta, Phi_r = traj_module(*traj_pars, T=t_out * 1.001)
+    if t[-1] <= t_out * YRSID_SI:
         raise ValueError("No solution found within the bounds for secondary mass.")
-   
-   # Check lower bound
-    traj_pars = [traj_args[0],bounds[1],traj_args[1], traj_args[2],traj_args[3],traj_args[4]]
-    t, p, e, xI, Phi_phi, Phi_theta, Phi_r = traj_module(*traj_pars, T=t_out*1.001)
-    if t[-1] >= t_out*YRSID_SI:
+
+    # Check lower bound
+    traj_pars = [
+        traj_args[0],
+        bounds[1],
+        traj_args[1],
+        traj_args[2],
+        traj_args[3],
+        traj_args[4],
+    ]
+    t, p, e, xI, Phi_phi, Phi_theta, Phi_r = traj_module(*traj_pars, T=t_out * 1.001)
+    if t[-1] >= t_out * YRSID_SI:
         raise ValueError("No solution found within the bounds for secondary mass.")
-   
 
     root = get_at_t(traj_module, traj_args, bounds, t_out, index_of_m2, **kwargs)
     return root
