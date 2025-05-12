@@ -308,7 +308,12 @@ class _auto_array_decorator:
                 "be applied on free-functions or bound methods"
             )
 
-        self._signature = inspect.signature(wrapped, eval_str=True)
+        import sys
+
+        if sys.version_info >= (3, 10):
+            self._signature = inspect.signature(wrapped, eval_str=True)
+        else:
+            self._signature = inspect.signature(wrapped)
 
         input_kinds, output_kind = _detect_wrapped_in_out(self._signature)
 
