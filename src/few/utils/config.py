@@ -94,10 +94,9 @@ class ConfigEntry(Generic[T]):
 
 
 def compatibility_isinstance(obj, cls) -> bool:
-    import sys
     import typing
 
-    if (sys.version_info >= (3, 10)) or (typing.get_origin(cls) is None):
+    if typing.get_origin(cls) is None:
         try:
             return isinstance(obj, cls)
         except TypeError:
@@ -128,7 +127,7 @@ def compatibility_isinstance(obj, cls) -> bool:
         return True
 
     raise NotImplementedError(
-        "Compatiblity wrapper for isinstance on Python 3.9 does not support given type."
+        "Compatiblity wrapper for isinstance does not support given type."
     )
 
 

@@ -66,7 +66,26 @@ class AutoArrayMode(enum.Enum):
 
 
 class xp_ndarray(np_ndarray):
+    """Class to be use as type hint for arrays that can be either np or xp ndarray"""
+
     pass
+
+
+class gettable_ndarray(np_ndarray):
+    """Class adding a get() method to np.ndarray to match cp.ndarray interface"""
+
+    def get(self):
+        return self
+
+    @staticmethod
+    def from_np_ndarray(other: np_ndarray) -> gettable_ndarray:
+        """Convert np.ndarray into gettable ndarray"""
+        return other.view(gettable_ndarray)
+
+    @staticmethod
+    def from_xp_ndarray(other: xp_ndarray) -> gettable_ndarray:
+        """Convert np.ndarray into gettable ndarray or return cp.ndarray directly"""
+        return other.view(gettable_ndarray) if isinstance(other, np_ndarray) else other
 
 
 class HintKind(enum.Flag):
@@ -308,12 +327,7 @@ class _auto_array_decorator:
                 "be applied on free-functions or bound methods"
             )
 
-        import sys
-
-        if sys.version_info >= (3, 10):
-            self._signature = inspect.signature(wrapped, eval_str=True)
-        else:
-            self._signature = inspect.signature(wrapped)
+        self._signature = inspect.signature(wrapped, eval_str=True)
 
         input_kinds, output_kind = _detect_wrapped_in_out(self._signature)
 

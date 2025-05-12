@@ -2,7 +2,7 @@
 
 Developping on FEW requires the following:
 
-- A Python 3.9+ interpreter (ideally in a dedicated virtualenv, or conda environment)
+- A Python 3.10+ interpreter (ideally in a dedicated virtualenv, or conda environment)
 - A C++ compiler to build the CPU backend
 - An IDE you are confortable with
 

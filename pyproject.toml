@@ -23,7 +23,7 @@ authors = [
   { name = "Niels Warburton" },
   { name = "Scott Hughes" },
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 classifiers = [
   "Environment :: GPU :: NVIDIA CUDA",
@@ -32,7 +32,6 @@ classifiers = [
   "Programming Language :: C++",
   "Programming Language :: Cython",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -43,7 +42,7 @@ classifiers = [
 dynamic = [ "version" ]
 
 dependencies = [
-  "exceptiongroup; python_version<'3.11'", # To access ExceptionGroup with Python 3.9 and 3.10
+  "exceptiongroup; python_version<'3.11'", # To access ExceptionGroup with Python 3.10
   "h5py",
   "jsonschema",                            # To validate content of file registry
   "lisaconstants",
@@ -82,9 +81,7 @@ optional-dependencies.sampling = [
   "lisatools",
 ]
 
-optional-dependencies.testing = [
-  "matplotlib",
-]
+optional-dependencies.testing = [ "matplotlib" ]
 
 urls.Documentation = "https://bhptoolkit.org/FastEMRIWaveforms/html/index.html"
 urls.Download = "https://pypi.org/project/fastemriwaveforms/#files"
@@ -174,16 +171,15 @@ lint.extend-select = [
 
 lint.ignore = [ "E741" ]
 
-lint.extend-per-file-ignores."*.ipynb" = [ "T201" ] # Allow "print" statements in notebooks
+lint.extend-per-file-ignores."*.ipynb" = [
+  "T201",
+] # Allow "print" statements in notebooks
 
 [tool.pyproject-fmt]
 max_supported_python = "3.13"
 
 [tool.coverage]
-paths.source = [
-  "src/",
-  "**/site-packages/",
-]
+paths.source = [ "src/", "**/site-packages/" ]
 
 report.omit = [
   "*/few/_version.py",
