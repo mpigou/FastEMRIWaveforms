@@ -25,7 +25,7 @@ from typing import (
 
 from ..cutils import KNOWN_BACKENDS
 from . import exceptions
-from .typing import AutoArrayMode
+from .typing import AutoArrayAction
 
 
 class ConfigSource(enum.Enum):
@@ -553,7 +553,8 @@ class Configuration(ConfigConsumer):
     file_extra_paths: List[pathlib.Path]
     file_disabled_tags: Optional[List[str]]
     enabled_backends: Optional[List[str]]
-    auto_array_mode: AutoArrayMode
+    auto_array_action: AutoArrayAction
+    auto_array_log_level: int
 
     @staticmethod
     def config_entries() -> List[ConfigEntry]:
@@ -678,13 +679,21 @@ class Configuration(ConfigConsumer):
                 else True,
             ),
             ConfigEntry(
-                label="auto_array_mode",
-                description="Mode for @auto_array decorator",
-                type=AutoArrayMode,
-                default=AutoArrayMode.DEFAULT,
-                env_var="AUTO_ARRAY_MODE",
-                convert=lambda x: AutoArrayMode._value2member_map_[x.lower()],
-                validate=lambda x: isinstance(x, AutoArrayMode),
+                label="auto_array_action",
+                description="Action for @auto_array decorator",
+                type=AutoArrayAction,
+                default=AutoArrayAction.DEFAULT,
+                env_var="AUTO_ARRAY_ACTION",
+                convert=lambda x: AutoArrayAction._value2member_map_[x.lower()],
+                validate=lambda x: isinstance(x, AutoArrayAction),
+            ),
+            ConfigEntry(
+                label="auto_array_log_level",
+                description="Log level for auto_array slow conversions",
+                type=int,
+                default=logging.DEBUG,
+                env_var="AUTO_ARRAY_LOG_LEVEL",
+                convert=Configuration._str_to_logging_level,
             ),
         ]
 

@@ -2,6 +2,7 @@
 
 import abc
 import dataclasses
+import functools
 import gc
 import inspect
 import logging
@@ -69,6 +70,7 @@ class tagged_test(FewTestDecorator):
         self.tags = set(list(tags) + kwargs_tags)
 
     def skip_if_disabled_tag(self, wrapped):
+        @functools.wraps(wrapped)
         def wrapped_with_skip(*args, **kwargs):
             disabled_tags = get_config().file_disabled_tags
             if disabled_tags is None:
