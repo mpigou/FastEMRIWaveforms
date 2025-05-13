@@ -387,17 +387,28 @@ class _auto_array_decorator:
             # Shortcut in OFF mode
             return wrapped(*args, **kwargs)
 
-        xp = self.__detect_xp(instance, kwargs)
+        fake_self = instance is not None
+        """Whether we must supply a fake "self" argument on argument binding"""
+
+        bound_args = (
+            self._signature.bind(None, *args, **kwargs)
+            if fake_self
+            else self._signature.bind(*args, **kwargs)
+        )
+        bound_args.apply_defaults()
+
+        xp = self.__detect_xp(instance, bound_args)
         logger.warning(f"xp is detected to be '{xp.__name__}'")
 
-        p_args, p_kwargs = self.__process_inputs(
+        self.__process_inputs(
             xp,
-            args,
-            kwargs,
-            fake_self=instance is not None,
+            bound_args=bound_args,
             action=action,
             log_level=log_level,
         )
+
+        p_args = bound_args.args[1:] if fake_self else bound_args.args
+        p_kwargs = bound_args.kwargs
 
         out = wrapped(*p_args, **p_kwargs)
 
@@ -405,7 +416,7 @@ class _auto_array_decorator:
 
         return p_out
 
-    def __detect_xp(self, instance, kwargs):
+    def __detect_xp(self, instance, bound_args: inspect.BoundArguments):
         """
         Detect the xp module associated to a decorated function call
         """
@@ -416,12 +427,11 @@ class _auto_array_decorator:
                 return getattr(instance, "xp")
 
             # We are calling __init__ if xp is not yet set
-            return instance.select_backend(
-                kwargs["force_backend"] if "force_backend" in kwargs else None
-            ).xp
+            if "force_backend" in bound_args.arguments:
+                return instance.select_backend(bound_args.arguments["force_backend"]).xp
 
-        if "use_gpu" in kwargs:
-            if kwargs["use_gpu"]:
+        if "use_gpu" in bound_args.arguments:
+            if bound_args.arguments["use_gpu"]:
                 import cupy
 
                 return cupy
@@ -431,28 +441,20 @@ class _auto_array_decorator:
 
         raise FewXpNotDeducible(
             "Could not detect xp module for call to "
-            f"{self._wrapped_name} ({self._wrapped_file}:{self._wrapped_lineno})."
+            f"{self._wrapped_name} ({self._wrapped_file}:{self._wrapped_lineno}) from {instance=} and {bound_args=}."
         )
 
     def __process_inputs(
-        self, xp, args, kwargs, fake_self: bool, action: AutoArrayAction, log_level: int
+        self,
+        xp,
+        bound_args: inspect.BoundArguments,
+        action: AutoArrayAction,
+        log_level: int,
     ):
         """Process given postional and keyword arguments for a specific xp module."""
-        # 1 - Bind input arguments to function signature
-        bound_args = (
-            self._signature.bind(None, *args, **kwargs)
-            if fake_self
-            else self._signature.bind(*args, **kwargs)
-        )
-        bound_args.apply_defaults()
-
-        # 2 - Iterate over arguments to process and update them if necessary
         for param_name, param_kind in self._input_kinds.items():
             pass
             # bound_args.arguments[param_name] = bound_args.arguments[param_name]
-
-        # 3 - Return resulting arguments
-        return bound_args.args[1:] if fake_self else bound_args.args, bound_args.kwargs
 
     def __process_output(self, xp, out, action: AutoArrayAction, log_level: int):
         """Process result output for a specific xp module"""
