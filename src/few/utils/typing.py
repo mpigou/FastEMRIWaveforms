@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import abc
 import enum
 import inspect
 import textwrap
 import typing as t
 
+import numpy as np
 import wrapt
 from numpy import ndarray as np_ndarray
+
+try:
+    import cupy as cp
+except ImportError:
+    cp = None
 
 from .exceptions import FewException
 
@@ -25,14 +32,16 @@ class FewInvalidTypeHints(FewTypingException):
         self.wrapped = wrapped
         self.signature = signature
         super().__init__(
-            f"Function {wrapped.__name__} has invalid type hints "
-            "for the input and output ndarrays. "
-            f"Signature is {self.signature}."
+            f"Function {wrapped.__name__} has invalid type hints for the input "
+            f"and output ndarrays. Signature is {self.signature}."
         )
 
 
 class FewMissingCompatibleTypeHints(FewInvalidTypeHints):
-    """Function is decorated with auto_array but does not have type hints for the input and output ndarrays."""
+    """
+    Function is decorated with auto_array but does not have type hints for the
+    input and output ndarrays.
+    """
 
 
 class FewUnsupportedTypeHint(FewInvalidTypeHints):
@@ -68,146 +77,335 @@ class AutoArrayAction(enum.Enum):
 class xp_ndarray(np_ndarray):
     """Class to be use as type hint for arrays that can be either np or xp ndarray"""
 
-    def get(self):
-        """No-op get method to match cp.ndarray interface"""
-        return self
+    def get(self) -> np_ndarray:
+        """Get method to match cp.ndarray interface"""
+        return self.view(np_ndarray)
 
     @staticmethod
     def from_np_ndarray(other: np_ndarray) -> xp_ndarray:
         """Convert np.ndarray into gettable ndarray"""
         return other.view(xp_ndarray)
 
-    @staticmethod
-    def from_any_ndarray(other: xp_ndarray) -> xp_ndarray:
-        """Convert np.ndarray into gettable ndarray or return cp.ndarray directly"""
-        return other.view(xp_ndarray) if isinstance(other, np_ndarray) else other
+
+xp_ndarray_like = xp_ndarray
+"""
+When used as type hint, indicates that the value is either an actual xp_ndarray,
+or a cp.ndarray
+"""
 
 
-class _Conversions(enum.Enum):
+class _Conversion(enum.IntEnum):
     """Type of conversions that can be applied"""
 
-    NONE = enum.auto()
+    NOOP = enum.auto()
     """No-op conversion"""
 
-    NP2XP = enum.auto()
-    """Convert np.ndarray to actual xp_ndarray instance"""
+    MINIMAL = enum.auto()
+    """Conversion required between np.ndarray and xp_ndarray"""
 
-    NP2CP = enum.auto()
-    """Convert np.ndarray or xp_ndarray to cp.ndarray"""
-
-    CP2XP = enum.auto()
-    """Convert xp.ndarray to xp_ndarray instance"""
+    COSTLY = enum.auto()
+    """Conversion required between CPU and GPU type"""
 
     INVALID = enum.auto()
     """Value cannot possibly be converted into hinted type"""
 
+    @property
+    def is_invalid(self) -> bool:
+        """Whether this conversion is invalid"""
+        return self is _Conversion.INVALID
 
-class HintKind(enum.Flag):
-    NP = enum.auto()
-    """Hint contains np.ndarray"""
+    @property
+    def is_noop(self) -> bool:
+        """Whether this conversion is a no-op"""
+        return self is _Conversion.NOOP
 
-    XP = enum.auto()
-    """Hint contains xp_ndarray"""
+    @property
+    def is_minimal(self) -> bool:
+        """Whether this conversion is minimal"""
+        return self is _Conversion.MINIMAL
 
-    PLAIN = enum.auto()
-    """Hint is for a plain value"""
+    @property
+    def is_costly(self) -> bool:
+        """Whether conversion has high cost"""
+        return self is _Conversion.COSTLY
 
-    UNION = enum.auto()
-    """Hint is for a Union between multiple type including ndarray"""
 
-    LIST = enum.auto()
-    """Hint is for a list container of only ndarray values"""
+class _HintKind(abc.ABC):
+    """Base class for hint kinds"""
 
-    DICT = enum.auto()
-    """Hint is for dict container of only ndarray values"""
+    _conversion_level: _Conversion
 
-    NONE = 0
-    """Hint is neither of previous options"""
+    def __init__(self, conversion_level: _Conversion, value, xp):
+        self._conversion_level = conversion_level
+        self._value = value
+        self._xp = xp
+        super().__init__()
 
-    PLAIN_NP = PLAIN | NP  # np.ndarray
-    PLAIN_XP = PLAIN | XP  # xp_ndarray
-    UNION_NP = UNION | NP  # t.Union[np.ndarray, ...]; t.Optional[np.ndarray]
-    UNION_XP = UNION | XP  # t.Union[xp_ndarray, ...]; t.Optional[xp_ndarray]
+    @abc.abstractmethod
+    def convert(self) -> t.Any:
+        """Convert a value into the hinted type"""
+        pass
 
-    LIST_PURE_NP = LIST | PLAIN_NP  # list[np.ndarray]
-    LIST_PURE_XP = LIST | PLAIN_XP  # list[xp_ndarray]
+    @property
+    def conversion_level(self) -> _Conversion:
+        return self._conversion_level
 
-    DICT_PURE_NP = DICT | PLAIN_NP  # dict[t.Any, np.ndarray]
-    DICT_PURE_XP = DICT | PLAIN_XP  # dict[t.Any, xp_ndarray]
+    @property
+    def value(self):
+        return self._value
 
-    # To add later
-    # LIST_MIX_NP = LIST | UNION_NP  # list[np.ndarray | other | ...]
-    # LIST_MIX_XP = LIST | UNION_XP  # list[xp_ndarray | other | ...]
-    # DICT_MIX_NP = DICT | UNION_NP  # dict[np.ndarray | other | ...]
-    # DICT_MIX_XP = DICT | UNION_XP  # dict[xp_ndarray | other | ...]
-    # TUPLE = enum.auto()
-    # """Hint for tuple containers of homogenous types"
-    #
-    # TUPLE_NP = TUPLE | NP  # tuple[np.ndarray, ...] or fixed length
-    # TUPLE_XP = TUPLE | XP  # tuple[xp.ndarray, ...] or fixed length
+    @property
+    def xp(self):
+        return self._xp
 
-    def as_np_variant(self) -> HintKind:
-        """Convert a xp or mix hint kind to np variant."""
-        return self ^ HintKind.XP | HintKind.NP
 
-    def isa(self, value: t.Any, xp) -> bool:
-        """Check if a value matched the hint"""
-        if self & HintKind.DICT:
-            return isinstance(value, dict) and all(
-                isinstance(v, np_ndarray if (self & HintKind.NP) else xp.ndarray)
-                for v in value.values()
-            )
+class _HintNone(_HintKind):
+    def __init__(self, value):
+        super().__init__(_Conversion.NOOP, value, None)
 
-        if self & HintKind.LIST:
-            return isinstance(value, list) and all(
-                isinstance(v, np_ndarray if (self & HintKind.NP) else xp.ndarray)
-                for v in value
-            )
+    def convert(self):
+        return self.value
 
+
+class _HintNP(_HintKind):
+    """For type hints of the form 'np.ndarray'"""
+
+    def __init__(self, value, xp):
+        super().__init__(_HintNP.detect_conversion(value, xp), value, xp)
+
+    @staticmethod
+    def detect_conversion(value: t.Any, xp) -> _Conversion:
         if isinstance(value, np_ndarray):
-            return (self & (HintKind.PLAIN | HintKind.UNION)) and (self & HintKind.NP)
-
-        if isinstance(value, xp.ndarray):
-            return (self & (HintKind.PLAIN | HintKind.UNION)) and (self & HintKind.XP)
-
-        return False
-
-    def from_value(self, value: t.Any, xp):
-        """Convert arrays from a value into self type"""
+            return _Conversion.NOOP
         if isinstance(value, xp_ndarray):
-            return self._from_xp_value(value, xp)
+            return _Conversion.MINIMAL
+        if (cp is not None) and (xp is cp) and isinstance(value, cp.ndarray):
+            return _Conversion.COSTLY
+        return _Conversion.INVALID
 
-        if isinstance(value, np_ndarray):
-            return self._from_np_value(value, xp)
+    def convert(self) -> np_ndarray:
+        conversion = self.conversion_level
+        value = self.value
 
-        return self._from_cp_value(value, xp)
+        if conversion.is_noop:
+            return self.value
+        if conversion.is_minimal:
+            # Assuming value is xp_ndarray
+            assert isinstance(self.value, xp_ndarray)
+            return value.get()
+        if conversion.is_costly:
+            assert isinstance(value, cp.ndarray)
+            # Assuming value is cp.ndarray
+            return value.get()
 
-    def _from_np_value(self, value: np_ndarray, xp):
-        """Convert arrays from a np.ndarray value into self type"""
-        raise NotImplementedError
-
-    def _from_xp_value(self, value: xp_ndarray, xp):
-        """Convert arrays from an actual xp_ndarray value into self type"""
-        raise NotImplementedError
-
-    def _from_cp_value(self, value: xp_ndarray, xp):
-        """Convert arrays from a cp.ndarray (passing as xp_ndarray) value into self type"""
-        raise NotImplementedError
+        raise FewAutoArrayInvalidConversion(
+            f"Invalid conversion {conversion} for value {value} and "
+            "type hint 'np.ndarray'."
+        )
 
 
-InputKinds = t.Dict[str, HintKind]
+class _HintXP(_HintKind):
+    """For type hints of the form 'xp_ndarray'"""
+
+    def __init__(self, value, xp):
+        super().__init__(_HintXP.detect_conversion(value, xp), value, xp)
+
+    @staticmethod
+    def detect_conversion(value: t.Any, xp) -> _Conversion:
+        if xp is np:
+            # Output type must be xp_ndarray
+            if isinstance(value, xp_ndarray):
+                return _Conversion.NOOP
+            if isinstance(value, np_ndarray):
+                return _Conversion.MINIMAL
+            if cp is not None and isinstance(value, cp.ndarray):
+                return _Conversion.COSTLY
+        elif cp is not None and xp is cp:
+            # Output type must be cp_ndarray
+            if isinstance(value, np_ndarray):
+                return _Conversion.COSTLY
+            if isinstance(value, xp_ndarray):
+                return _Conversion.COSTLY
+            if isinstance(value, cp.ndarray):
+                return _Conversion.NOOP
+        return _Conversion.INVALID
+
+    def convert(self) -> xp_ndarray_like:
+        conversion = self.conversion_level
+        value = self.value
+        xp = self.xp
+
+        if conversion.is_noop:
+            return value
+
+        if conversion.is_minimal:
+            assert isinstance(value, np_ndarray)
+            return xp_ndarray.from_np_ndarray(value)
+
+        if conversion.is_costly:
+            if xp is np:
+                assert cp is not None and isinstance(value, cp.ndarray)
+                return xp_ndarray.from_np_ndarray(value.get())
+
+            assert cp is not None
+            return cp.asarray(value)
+
+        raise FewAutoArrayInvalidConversion(
+            f"Invalid conversion {conversion} for value {value} and "
+            "type hint 'xp_ndarray'."
+        )
+
+
+class _HintListNP(_HintKind):
+    """For type hints of the form 'list[np.ndarray]'"""
+
+    _item_hints: list[_HintNP]
+
+    def __init__(self, value, xp):
+        try:
+            self._item_hints = [_HintNP(v, xp) for v in value]
+        except TypeError:
+            super().__init__(_Conversion.INVALID, value, xp)
+            return
+
+        conversion_level = max(hint.conversion_level for hint in self._item_hints)
+
+        super().__init__(conversion_level, value, xp)
+
+    def convert(self):
+        return [hint.convert() for hint in self._item_hints]
+
+
+class _HintListXP(_HintKind):
+    """For type hints of the form 'list[xp_ndarray]'"""
+
+    _item_hints: list[_HintXP]
+
+    def __init__(self, value, xp):
+        try:
+            self._item_hints = [_HintXP(v, xp) for v in value]
+        except TypeError:
+            super().__init__(_Conversion.INVALID, value, xp)
+            return
+
+        conversion_level = max(hint.conversion_level for hint in self._item_hints)
+
+        super().__init__(conversion_level, value, xp)
+
+    def convert(self):
+        return [hint.convert() for hint in self._item_hints]
+
+
+class _HintDictNP(_HintKind):
+    """For type hints of the form 'dict[t.Any, np.ndarray]'"""
+
+    _item_hints: dict[t.Any, _HintNP]
+
+    def __init__(self, value, xp):
+        try:
+            self._item_hints = {k: _HintNP(v, xp) for k, v in value.items()}
+        except AttributeError:
+            super().__init__(_Conversion.INVALID, value, xp)
+            return
+
+        conversion_level = max(
+            hint.conversion_level for hint in self._item_hints.values()
+        )
+
+        super().__init__(conversion_level, value, xp)
+
+    def convert(self):
+        return {k: hint.convert() for k, hint in self._item_hints.items()}
+
+
+class _HintDictXP(_HintKind):
+    """For type hints of the form 'dict[t.Any, xp_ndarray]'"""
+
+    _item_hints: dict[t.Any, _HintXP]
+
+    def __init__(self, value, xp):
+        try:
+            self._item_hints = {k: _HintXP(v, xp) for k, v in value.items()}
+        except AttributeError:
+            super().__init__(_Conversion.INVALID, value, xp)
+            return
+
+        conversion_level = max(
+            hint.conversion_level for hint in self._item_hints.values()
+        )
+
+        super().__init__(conversion_level, value, xp)
+
+    def convert(self):
+        return {k: hint.convert() for k, hint in self._item_hints.items()}
+
+
+class _HintUnionNP(_HintKind):
+    """For type hints of the form 'np.ndarray | others | ...'"""
+
+    _hint_np: _HintNP
+
+    def __init__(self, value, xp):
+        self._hint_np = _HintNP(value, xp)
+        if self._hint_np.conversion_level.is_invalid:
+            # If HintNP cannot convert type, we assume the value type is one
+            # from the Union hint
+            super().__init__(_Conversion.NOOP, value, xp)
+            return
+
+        super().__init__(self._hint_np.conversion_level, value, xp)
+
+    def convert(self):
+        if self.conversion_level.is_noop:
+            return self.value
+        return self._hint_np.convert()
+
+
+class _HintUnionXP(_HintKind):
+    """For type hints of the form 'xp_ndarray | others | ...'"""
+
+    _hint_np: _HintXP
+
+    def __init__(self, value, xp):
+        self._hint_np = _HintXP(value, xp)
+        if self._hint_np.conversion_level.is_invalid:
+            # If _HintXP cannot convert type, we assume the value type is one
+            # from the Union hint
+            super().__init__(_Conversion.NOOP, value, xp)
+            return
+
+        super().__init__(self._hint_np.conversion_level, value, xp)
+
+    def convert(self):
+        if self.conversion_level.is_noop:
+            return self.value
+        return self._hint_np.convert()
+
+
+# To add later
+# LIST_MIX_NP = LIST | UNION_NP  # list[np.ndarray | other | ...]
+# LIST_MIX_XP = LIST | UNION_XP  # list[xp_ndarray | other | ...]
+# DICT_MIX_NP = DICT | UNION_NP  # dict[np.ndarray | other | ...]
+# DICT_MIX_XP = DICT | UNION_XP  # dict[xp_ndarray | other | ...]
+# TUPLE = enum.auto()
+# """Hint for tuple containers of homogenous types"
+# TUPLE_NP = TUPLE | NP  # tuple[np.ndarray, ...] or fixed length
+# TUPLE_XP = TUPLE | XP  # tuple[xp.ndarray, ...] or fixed length
+
+
+InputKinds = t.Dict[str, type[_HintKind] | None]
 """
 Type for storing mapping of parameter name with their HintKind for auto_array.
 """
 
-OutputKind = t.Union[None, HintKind, t.Sequence[HintKind]]
+OutputKind = t.Union[None, type[_HintKind], list[type[_HintKind] | None]]
 """
 Output is:
 - None: a value not interpretable by auto array
 - HintKind: a single value whose content can be interpreted by auto_array
-- Sequence[HintKind]: a tuple whose n-th entry has a kind given by the sequence
-                       n-th value (at least one element in the sequence must
-                       be a np or xp array)
+- Sequence[HintKind | None]: a tuple whose n-th entry has a kind given by the
+                       sequence n-th value (at least one element in the sequence
+                       must be a np or xp array)
 """
 
 
@@ -241,51 +439,48 @@ class FewUnsupportedAnnotation(FewTypingException):
         super().__init__(*args, **kwargs)
 
 
-def annotation_to_hint_kind(annotation: t.Any) -> HintKind:
+def annotation_to_hint_kind(annotation: t.Any) -> type[_HintKind] | None:
     """Generic method to detect what HintKind corresponds to a given annotation"""
     if annotation is inspect.Signature.empty:
-        return HintKind.NONE
+        return None
 
     if annotation is np_ndarray:
-        return HintKind.PLAIN_NP
+        return _HintNP
 
     if annotation is xp_ndarray:
-        return HintKind.PLAIN_XP
+        return _HintXP
 
     if t.get_origin(annotation) is t.Union:
         args = t.get_args(annotation)
-        hint = HintKind.UNION
-        if np_ndarray in args:
-            hint |= HintKind.NP
-        if xp_ndarray in args:
-            hint |= HintKind.XP
-        if (hint & HintKind.NP) and (hint & HintKind.XP):
+        if np_ndarray in args and xp_ndarray in args:
             raise FewUnsupportedAnnotation(
                 "auto_array cannot be used with Union[np.ndarray, xp_ndarray] annotations",
                 annotation=annotation,
             )
-        if hint == HintKind.UNION:
-            """The Union does not contain np or xp array"""
-            return HintKind.NONE
-        return hint
+
+        if np_ndarray in args:
+            return _HintUnionNP
+        if xp_ndarray in args:
+            return _HintUnionXP
+        return None
 
     if t.get_origin(annotation) is list:
         args = t.get_args(annotation)
         if args[0] is np_ndarray:
-            return HintKind.LIST_PURE_NP
+            return _HintListNP
         if args[0] is xp_ndarray:
-            return HintKind.LIST_PURE_XP
-        return HintKind.NONE
+            return _HintListXP
+        return None
 
     if t.get_origin(annotation) is dict:
         args = t.get_args(annotation)
         if args[1] is np_ndarray:
-            return HintKind.DICT_PURE_NP
+            return _HintDictNP
         if args[1] is xp_ndarray:
-            return HintKind.DICT_PURE_XP
-        return HintKind.NONE
+            return _HintDictXP
+        return None
 
-    return HintKind.NONE
+    return None
 
 
 def _detect_input_kinds_from_(signature: inspect.Signature) -> InputKinds:
@@ -304,17 +499,21 @@ def _detect_output_kind_from_(signature: inspect.Signature) -> OutputKind:
         output_kinds = [
             annotation_to_hint_kind(hint) for hint in t.get_args(return_annotation)
         ]
-        if any((kind != HintKind.NONE for kind in output_kinds)):
+        if any((kind is not None for kind in output_kinds)):
             return output_kinds
         return None
 
     output_kind = annotation_to_hint_kind(return_annotation)
 
-    return None if output_kind == HintKind.NONE else output_kind
+    return output_kind
 
 
 class FewXpNotDeducible(FewTypingException):
     """Raised when xp cannot be deduced from execution context"""
+
+
+class FewAutoArayForbiddenConversion(FewTypingException):
+    """Raised when costly conversion is needed but forbidden"""
 
 
 class _auto_array_decorator:
@@ -356,9 +555,7 @@ class _auto_array_decorator:
             raise FewInvalidTypeHints(wrapped=wrapped, signature=self._signature) from e
 
         if (
-            not any(
-                (input_kind != HintKind.NONE) for input_kind in input_kinds.values()
-            )
+            not any((input_kind is not None) for input_kind in input_kinds.values())
         ) and (output_kind is None):
             raise FewMissingCompatibleTypeHints(
                 wrapped=wrapped, signature=self._signature
@@ -369,6 +566,7 @@ class _auto_array_decorator:
 
     @wrapt.decorator
     def __call__(self, wrapped, instance, args, kwargs):
+        """Apply type detection and conversions on call to wrapped function."""
         from few import get_config, get_logger
 
         logger = get_logger()
@@ -387,12 +585,12 @@ class _auto_array_decorator:
             # Shortcut in OFF mode
             return wrapped(*args, **kwargs)
 
-        fake_self = instance is not None
+        needs_self = instance is not None
         """Whether we must supply a fake "self" argument on argument binding"""
 
         bound_args = (
-            self._signature.bind(None, *args, **kwargs)
-            if fake_self
+            self._signature.bind(instance, *args, **kwargs)
+            if needs_self
             else self._signature.bind(*args, **kwargs)
         )
         bound_args.apply_defaults()
@@ -400,15 +598,15 @@ class _auto_array_decorator:
         xp = self.__detect_xp(instance, bound_args)
         logger.warning(f"xp is detected to be '{xp.__name__}'")
 
-        self.__process_inputs(
+        p_bound_args = self.__process_inputs(
             xp,
             bound_args=bound_args,
             action=action,
             log_level=log_level,
         )
 
-        p_args = bound_args.args[1:] if fake_self else bound_args.args
-        p_kwargs = bound_args.kwargs
+        p_args = p_bound_args.args[1:] if needs_self else p_bound_args.args
+        p_kwargs = p_bound_args.kwargs
 
         out = wrapped(*p_args, **p_kwargs)
 
@@ -430,7 +628,9 @@ class _auto_array_decorator:
             if "force_backend" in bound_args.arguments:
                 return instance.select_backend(bound_args.arguments["force_backend"]).xp
 
-        if "use_gpu" in bound_args.arguments:
+        if "use_gpu" in bound_args.arguments and isinstance(
+            bound_args.arguments["use_gpu"], bool
+        ):
             if bound_args.arguments["use_gpu"]:
                 import cupy
 
@@ -450,24 +650,206 @@ class _auto_array_decorator:
         bound_args: inspect.BoundArguments,
         action: AutoArrayAction,
         log_level: int,
-    ):
+    ) -> inspect.BoundArguments:
         """Process given postional and keyword arguments for a specific xp module."""
-        for param_name, param_kind in self._input_kinds.items():
-            pass
-            # bound_args.arguments[param_name] = bound_args.arguments[param_name]
+        if action is AutoArrayAction.OFF:
+            return
+
+        # 1. Go through each parameter in _input_kinds and detect what conversion
+        #    it requires
+        input_converters = {
+            param_name: param_kind(bound_args.arguments[param_name], xp)
+            for param_name, param_kind in self._input_kinds.items()
+            if param_kind is not None
+        }
+
+        # 2. Depending on mode and needed conversions, send log message or fail
+        #    program
+        max_conversion_level = max(
+            converter.conversion_level for converter in input_converters.values()
+        )
+
+        if max_conversion_level.is_invalid:
+            raise FewAutoArrayInvalidConversion(
+                "In function %s (%s:%u), parameters %s need invalid "
+                "conversion to match their hinted types.",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+                {
+                    param_name: converter
+                    for param_name, converter in input_converters.items()
+                    if converter.conversion_level.is_invalid
+                },
+                bound_args,
+            )
+
+        if max_conversion_level.is_costly and action is AutoArrayAction.FAIL:
+            self.__action_input_log(input_converters, log_level=None, fail=True)
+
+        if max_conversion_level.is_costly and action is AutoArrayAction.CONVERT:
+            self.__action_input_log(input_converters, log_level=log_level, fail=False)
+
+        # 3. Perform the needed conversions
+        for param_name, converter in input_converters.items():
+            bound_args.arguments[param_name] = converter.convert()
+
+        return bound_args
+
+    def __action_input_log(
+        self, input_converters: dict[str, _HintKind], log_level: int | None, fail: bool
+    ):
+        """If converters requires loggable operation, log them"""
+        from few import get_logger
+
+        logger = get_logger()
+
+        parameters = [
+            key
+            for key, converter in input_converters.items()
+            if converter.conversion_level.is_costly
+        ]
+
+        if log_level is not None:
+            logger.log(
+                log_level,
+                "In function %s (%s:%u), parameters %s need costly "
+                "conversion between np and cp arrays",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+                parameters,
+            )
+
+        if fail:
+            raise FewAutoArayForbiddenConversion(
+                "In function %s (%s:%u), parameters %s need costly "
+                "conversion between np and cp arrays",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+                parameters,
+            )
 
     def __process_output(self, xp, out, action: AutoArrayAction, log_level: int):
         """Process result output for a specific xp module"""
         if self._output_kind is None:
             return out
 
-        if isinstance(self._output_kind, HintKind):
-            return out  # __process_value(xp=xp, value=out, kind=output_kind, mode=mode)
+        if isinstance(self._output_kind, list):
+            return self.__process_sequence_output(
+                xp=xp,
+                out=out,
+                action=action,
+                log_level=log_level,
+                output_kinds=self._output_kind,
+            )
 
-        return tuple(
-            o  # __process_value(xp=xp, value=o, kind=k, mode=mode, input=False)
-            for o, k in zip(out, self._output_kind)
+        return self.__process_pure_output(
+            xp=xp, out=out, action=action, log_level=log_level
         )
+
+    def __process_pure_output(self, xp, out, action, log_level):
+        """Process function output when it has a single value"""
+        converter = self._output_kind(out, xp)
+
+        if converter.conversion_level.is_noop:
+            return out
+
+        if converter.conversion_level.is_invalid:
+            FewAutoArrayInvalidConversion(
+                "In function %s (%s:%u), output has invalid "
+                "type for conversion into its hinted types.",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+                out,
+            )
+
+        if converter.conversion_level.is_costly:
+            if action is AutoArrayAction.FAIL:
+                raise FewAutoArayForbiddenConversion(
+                    "In function %s (%s:%u), output %s value needs costly "
+                    "conversion between np and cp arrays",
+                    self._wrapped_name,
+                    self._wrapped_file,
+                    self._wrapped_lineno,
+                    out,
+                )
+            if action is AutoArrayAction.CONVERT:
+                from few import get_logger
+
+                logger = get_logger()
+                logger.log(
+                    log_level,
+                    "In function %s (%s:%u), output %s needs costly "
+                    "conversion between np and cp arrays",
+                    self._wrapped_name,
+                    self._wrapped_file,
+                    self._wrapped_lineno,
+                    out,
+                )
+
+        # At this point, we are in the context of a minimal conversion, or costly
+        # conversion is authorized
+
+        return converter.convert()
+
+    def __process_sequence_output(
+        self, xp, out, action, log_level, output_kinds: list[type[_HintKind] | None]
+    ):
+        """Process function outputs when it contains multiple values in a tuple"""
+        output_converters = [
+            output_kind(value, xp) if output_kind is not None else _HintNone(value)
+            for value, output_kind in zip(out, output_kinds)
+        ]
+
+        max_conversion_level = max(
+            converter.conversion_level for converter in output_converters
+        )
+
+        if max_conversion_level.is_invalid:
+            raise FewAutoArrayInvalidConversion(
+                "In function %s (%s:%u), outputs at indices %s need invalid "
+                "conversion to match their hinted types.",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+                [
+                    i
+                    for i, c in enumerate(output_converters)
+                    if c.conversion_level.is_invalid
+                ],
+            )
+
+        if max_conversion_level.is_costly and action is AutoArrayAction.FAIL:
+            raise FewAutoArayForbiddenConversion(
+                "In function %s (%s:%u), outputs at indices %s need costly "
+                "conversion between np and cp arrays",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+            )
+
+        if max_conversion_level.is_costly and action is AutoArrayAction.CONVERT:
+            from few import get_logger
+
+            logger = get_logger()
+            logger.log(
+                log_level,
+                "In function %s (%s:%u), outputs at indices %s need costly "
+                "conversion between np and cp arrays",
+                self._wrapped_name,
+                self._wrapped_file,
+                self._wrapped_lineno,
+                [
+                    i
+                    for i, c in enumerate(output_converters)
+                    if c.conversion_level.is_costly
+                ],
+            )
+
+        return tuple(k.convert() for k in output_converters)
 
 
 def auto_array(wrapped):
@@ -477,10 +859,11 @@ def auto_array(wrapped):
 
     # The following "(wrapped)(wrapped)" call is no typo.
     # The first call builds a _auto_array_decorator instance which analyses
-    #  "wrapped" signature to determine how its input parameter and output should
-    #  be typed.
+    #  "wrapped" signature to determine only once how its input parameter and
+    #   output should be typed.
     # The second call decorates "wrapped" using a wrapt.decorator which will
-    #  intercept args, kwargs and out at runtime and apply the requested mode.
+    #  intercept args, kwargs and out at runtime and execute the requested
+    #  action in case of type mismatch.
     return _auto_array_decorator(wrapped)(wrapped)
 
 
