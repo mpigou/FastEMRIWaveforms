@@ -684,7 +684,7 @@ class Configuration(ConfigConsumer):
                 type=AutoArrayAction,
                 default=AutoArrayAction.DEFAULT,
                 env_var="AUTO_ARRAY_ACTION",
-                convert=lambda x: AutoArrayAction._value2member_map_[x.lower()],
+                convert=lambda x: AutoArrayAction(x),
                 validate=lambda x: isinstance(x, AutoArrayAction),
             ),
             ConfigEntry(

@@ -187,3 +187,7 @@ report.omit = [
   "*/few/git_version.py",
   "*/few_backend_*/git_version.py",
 ]
+
+[[tool.mypy.overrides]]
+module = [ "cupy.*", "wrapt.*" ]
+ignore_missing_imports = true

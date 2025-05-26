@@ -5,3 +5,7 @@ various methods documented below. Some amplitude modules have gpu capabilities.
 It deals with :math:`A_{lmkn}` in :eq:`emri_wave_eq`.
 
 """
+
+from .base import ModeIndex
+
+__all__ = ["ModeIndex"]

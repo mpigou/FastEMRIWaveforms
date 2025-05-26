@@ -10,6 +10,7 @@ import typing
 from ..cutils import Backend, BackendsManager
 from ..files import FileManager
 from .config import (
+    AutoArrayAction,
     ConfigConsumer,
     ConfigEntry,
     ConfigSource,
@@ -109,6 +110,10 @@ class ConfigurationSetter:
     def disable_file_tags(self, *tags: str) -> ConfigurationSetter:
         """Disable files associated to given tags"""
         return self._convert_and_set("file_disabled_tags", tags)
+
+    def set_auto_array_action(self, action: AutoArrayAction) -> ConfigurationSetter:
+        """Change the auto_array action"""
+        return self._convert_and_set("auto_array_action", action)
 
     def add_file_extra_paths(
         self, *paths: typing.List[os.PathLike]
