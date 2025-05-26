@@ -1,7 +1,9 @@
-from ..utils.citations import Citable
+import typing as t
 
-import numpy as np
-from typing import Optional, Union
+from ..utils.citations import Citable
+from ..utils.typing import auto_array, xp_ndarray
+
+ModeIndex: t.TypeAlias = tuple[int, int, int]
 
 
 class AmplitudeBase(Citable):
@@ -29,9 +31,13 @@ class AmplitudeBase(Citable):
         """
         raise NotImplementedError
 
+    @auto_array
     def __call__(
-        self, *args, specific_modes: Optional[Union[list, np.ndarray]] = None, **kwargs
-    ) -> Union[dict, np.ndarray]:
+        self,
+        *args,
+        specific_modes: list[ModeIndex] | xp_ndarray | None = None,
+        **kwargs,
+    ) -> dict[ModeIndex, xp_ndarray] | xp_ndarray:
         """Common call for Teukolsky amplitudes
 
         This function takes the inputs the trajectory in :math:`(p,e)` as arrays
@@ -41,7 +47,9 @@ class AmplitudeBase(Citable):
         Args:
             *args: Added to create future flexibility when calling different
                 amplitude modules. Transfers directly into get_amplitudes function.
-            specific_modes: Either indices or mode index tuples of modes to be generated (optional; defaults to all modes). This is not available for all waveforms.
+            specific_modes: Either indices or mode index tuples of modes to be
+                generated (optional; defaults to all modes).
+                This is not available for all waveforms.
             **kwargs (dict, placeholder): Added to create flexibility when calling different
                 amplitude modules. It is not used.
 
