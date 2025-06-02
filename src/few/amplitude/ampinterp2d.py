@@ -19,7 +19,6 @@
 import os
 import pathlib
 from copy import deepcopy
-from typing import List, Optional, Union
 
 import h5py
 import numpy as np
@@ -37,7 +36,7 @@ from ..utils.citations import REFERENCE
 from ..utils.mappings.kerrecceq import kerrecceq_forward_map
 from ..utils.mappings.schwarzecc import schwarzecc_p_to_y
 from ..utils.typing import auto_array, xp_ndarray
-from .base import AmplitudeBase
+from .base import AmplitudeBase, ModeIndex
 
 # get path to this file
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -171,10 +170,10 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
     @auto_array
     def __call__(
         self,
-        w: Union[float, xp_ndarray],
-        u: Union[float, xp_ndarray],
+        w: xp_ndarray,
+        u: xp_ndarray,
         *args,
-        mode_indexes: Optional[xp_ndarray] = None,
+        mode_indexes: xp_ndarray | None = None,
         **kwargs,
     ) -> xp_ndarray:
         """
@@ -187,8 +186,6 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
         Returns:
             Complex Teukolsky mode amplitudes at the requested points.
         """
-        w: xp_ndarray = self.xp.asarray(w)
-        u: xp_ndarray = self.xp.asarray(u)
 
         tw, tu = self.knots
         c = self.coeff
@@ -259,7 +256,7 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
 
     def __init__(
         self,
-        filename: Optional[str] = None,
+        filename: str | None = None,
         downsample_Z=1,
         force_backend: BackendLike = None,
         **kwargs,
@@ -352,11 +349,11 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
     def get_amplitudes(
         self,
         a: float,
-        p: Union[float, np.ndarray],
-        e: Union[float, np.ndarray],
-        xI: Union[float, np.ndarray],
-        specific_modes: Optional[Union[list, np.ndarray]] = None,
-    ) -> Union[dict, np.ndarray]:
+        p: np.ndarray,
+        e: np.ndarray,
+        xI: np.ndarray,
+        specific_modes: list | np.ndarray | None = None,
+    ) -> dict[ModeIndex, np.ndarray] | np.ndarray:
         """
         Generate Teukolsky amplitudes for a given set of parameters.
 
@@ -374,13 +371,6 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
         # prograde: spin pos, xI pos
         # retrograde: spin pos, xI neg - >  spin neg, xI pos
         # assert isinstance(a, float)
-
-        try:
-            p = p.get()
-            e = e.get()
-            xI = xI.get()
-        except AttributeError:
-            pass
 
         a = self.xp.atleast_1d(a)
         p = self.xp.atleast_1d(p)
@@ -577,7 +567,7 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
 
     def __init__(
         self,
-        filenames: Optional[List[str]] = None,
+        filenames: list[str] | None = None,
         force_backend: BackendLike = None,
         **kwargs,
     ):
@@ -672,11 +662,11 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
     def get_amplitudes(
         self,
         a: float,
-        p: Union[float, xp_ndarray],
-        e: Union[float, xp_ndarray],
+        p: xp_ndarray,
+        e: xp_ndarray,
         xI: np.ndarray,
         specific_modes=None,
-    ) -> Union[dict, xp_ndarray]:
+    ) -> dict[ModeIndex, xp_ndarray] | xp_ndarray:
         """
         Generate Teukolsky amplitudes for a given set of parameters.
 
@@ -684,7 +674,7 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
             a: Dimensionless spin parameter of MBH (must be equal to zero).
             p: Dimensionless semi-latus rectum.
             e: Eccentricity.
-            xI: Cosine of orbital inclination. Only :math:`x_I = 1` is currently supported.
+            xI: Cosine of orbital inclination. Only :math:`x_I = 1.0` is currently supported.
             specific_modes: Either indices or mode index tuples of modes to be generated (optional; defaults to all modes).
         Returns:
             If specific_modes is a list of tuples, returns a dictionary of complex mode amplitudes.
@@ -694,10 +684,7 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
 
         assert np.all(xI == 1.0)
 
-        p = self.xp.asarray(p)
-        e = self.xp.asarray(e)
-
-        u = self.xp.asarray(schwarzecc_p_to_y(p, e, use_gpu=self.backend.uses_gpu))
+        u = schwarzecc_p_to_y(p, e, use_gpu=self.backend.uses_gpu)
         w = e.copy()
 
         tw, tu, c = self.tck[:3]

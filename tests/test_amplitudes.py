@@ -46,7 +46,7 @@ class AmplitudesTest(FewBackendTest):
 
         # test if amplitude generation gives same values for scalar vs array inputs
         a = 0.3
-        p = 8
+        p = 8.0
         e = 0.4
         xI = 1.0
         amplitudes = amp_module(a, p, e, xI)
