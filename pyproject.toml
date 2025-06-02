@@ -42,6 +42,7 @@ classifiers = [
 dynamic = [ "version" ]
 
 dependencies = [
+  "beartype",                              # For advanced type hints
   "exceptiongroup; python_version<'3.11'", # To access ExceptionGroup with Python 3.10
   "h5py",
   "jsonschema",                            # To validate content of file registry

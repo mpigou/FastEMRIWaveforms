@@ -8,6 +8,7 @@ import textwrap
 import types
 import typing as t
 
+import beartype.door
 import numpy as np
 import wrapt
 from numpy import ndarray as np_ndarray
@@ -59,6 +60,10 @@ class FewAutoArrayInvalidTarget(FewTypingException):
 
 class FewAutoArrayInvalidConversion(FewTypingException):
     """Value cannot be converted into target type."""
+
+
+class FewUnsupportedTypeHint(FewTypingException):
+    """Type hint is not supported"""
 
 
 class AutoArrayAction(enum.Enum):
@@ -432,7 +437,7 @@ class HintDictBuilder:
         try:
             assert isinstance(value, dict)
             for k in value.keys():
-                if not isinstance(k, self.key_type):
+                if not beartype.door.is_bearable(k, self.key_type):
                     return HintKind(ConversionLevel.INVALID, value, xp)
             self._itemHints = {k: HintNP(v, xp) for k, v in value.items()}
         except (AssertionError, AttributeError):
@@ -467,6 +472,15 @@ class HintUnionBuilder:
     ):
         self._sub_builders = set(sub_builders)
         self._unmanaged_types = set(other_types)
+
+        for type in self._unmanaged_types:
+            try:
+                _ = beartype.door.is_bearable(None, type)
+            except TypeError as e:
+                raise FewUnsupportedTypeHint(
+                    f"Hint {type} not compatible with isinstance"
+                ) from e
+
         self._allow_any = allow_any
 
         for sub_builder in self._sub_builders:
@@ -507,7 +521,10 @@ class HintUnionBuilder:
 
         return HintKind(
             ConversionLevel.NOOP
-            if any(isinstance(value, subtype) for subtype in self._unmanaged_types)
+            if any(
+                beartype.door.is_bearable(value, subtype)
+                for subtype in self._unmanaged_types
+            )
             else ConversionLevel.INVALID,
             value,
             xp,
