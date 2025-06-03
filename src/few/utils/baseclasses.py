@@ -40,12 +40,16 @@ class ParallelModuleBase(Citable):
     _backend_name: str
 
     def __init__(self, /, force_backend: BackendLike = None):
+        self._backend_name = self.select_backend(force_backend).name
+
+    @classmethod
+    def select_backend(cls, force_backend: BackendLike = None) -> Backend:
         if force_backend is not None:
             if isinstance(force_backend, Backend):
-                force_backend = force_backend.name
-            self._backend_name = get_backend(force_backend).name
+                return force_backend
+            return get_backend(force_backend)
         else:
-            self._backend_name = get_first_backend(self.supported_backends()).name
+            return get_first_backend(cls.supported_backends())
 
     @property
     def backend(self) -> Backend:
