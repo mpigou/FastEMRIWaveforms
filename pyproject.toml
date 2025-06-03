@@ -43,6 +43,7 @@ classifiers = [
 dynamic = [ "version" ]
 
 dependencies = [
+  "beartype",                              # To access runtime type checks
   "exceptiongroup; python_version<'3.11'", # To access ExceptionGroup with Python 3.9 and 3.10
   "h5py",
   "jsonschema",                            # To validate content of file registry
@@ -178,3 +179,10 @@ report.omit = [
   "*/few/git_version.py",
   "*/few_backend_*/git_version.py",
 ]
+
+[tool.mypy]
+always_false = "TYPE_CHECKING_GPU_GUARD"
+
+[[tool.mypy.overrides]]
+module = [ "cupy.*" ]
+ignore_missing_imports = true
