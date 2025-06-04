@@ -1,5 +1,5 @@
+import typing as t
 from math import acos, cos, pow, sqrt
-from typing import Union
 
 import numpy as np
 from numba import cuda, njit
@@ -104,12 +104,19 @@ def _ELQ_to_pex_kernel(p, e, xI, a, E, Lz, Q):
         p[i], e[i], xI[i] = _ELQ_to_pex_kernel_inner(a[i], E[i], Lz[i], Q[i])
 
 
+@t.overload
 def ELQ_to_pex(
-    a: Union[float, np.ndarray],
-    E: Union[float, np.ndarray],
-    Lz: Union[float, np.ndarray],
-    Q: Union[float, np.ndarray],
-) -> tuple[Union[float, np.ndarray]]:
+    a: float, E: float, Lz: float, Q: float
+) -> tuple[float, float, float]: ...
+
+
+@t.overload
+def ELQ_to_pex(
+    a: np.ndarray, E: np.ndarray, Lz: np.ndarray, Q: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+
+
+def ELQ_to_pex(a, E, Lz, Q):
     """Convert from Kerr constants of motion to orbital elements.
 
     arguments:
@@ -467,13 +474,19 @@ def _KerrGeoCoordinateFrequencies_kernel_gpu(OmegaPhi, OmegaTheta, OmegaR, a, p,
         )
 
 
+@t.overload
 def get_fundamental_frequencies(
-    a: Union[float, np.ndarray],
-    p: Union[float, np.ndarray],
-    e: Union[float, np.ndarray],
-    x: Union[float, np.ndarray],
-    use_gpu: bool = False,
-) -> tuple[Union[float, np.ndarray]]:
+    a: float, p: float, e: float, x: float, use_gpu: bool
+) -> tuple[float, float, float]: ...
+
+
+@t.overload
+def get_fundamental_frequencies(
+    a: np.ndarray, p: np.ndarray, e: np.ndarray, x: np.ndarray, use_gpu: bool
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+
+
+def get_fundamental_frequencies(a, p, e, x, use_gpu=False):
     r"""Get dimensionless fundamental frequencies.
 
     Determines fundamental frequencies in generic Kerr from
@@ -838,12 +851,19 @@ def _KerrEqSpinFrequenciesCorrections_kernel(OmegaPhi, OmegaTheta, OmegaR, a, p,
         )
 
 
+@t.overload
 def get_fundamental_frequencies_spin_corrections(
-    a: Union[float, np.ndarray],
-    p: Union[float, np.ndarray],
-    e: Union[float, np.ndarray],
-    x: Union[float, np.ndarray],
-) -> tuple[Union[float, np.ndarray]]:
+    a: float, p: float, e: float, x: float
+) -> tuple[float, float, float]: ...
+
+
+@t.overload
+def get_fundamental_frequencies_spin_corrections(
+    a: np.ndarray, p: np.ndarray, e: np.ndarray, x: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+
+
+def get_fundamental_frequencies_spin_corrections(a, p, e, x):
     r"""Get the leading-order correction term to the fundamental frequencies due to the spin of the secondary compact object.
 
     Currently only supported for equatorial orbits.
@@ -1066,12 +1086,25 @@ def _KerrGeoConstantsOfMotion_kernel(E_out, L_out, Q_out, a, p, e, x):
         )
 
 
+@t.overload
 def get_kerr_geo_constants_of_motion(
-    a: Union[float, np.ndarray],
-    p: Union[float, np.ndarray],
-    e: Union[float, np.ndarray],
-    x: Union[float, np.ndarray],
-) -> tuple[Union[float, np.ndarray]]:
+    a: float,
+    p: float,
+    e: float,
+    x: float,
+) -> tuple[float, float, float]: ...
+
+
+@t.overload
+def get_kerr_geo_constants_of_motion(
+    a: np.ndarray,
+    p: np.ndarray,
+    e: np.ndarray,
+    x: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+
+
+def get_kerr_geo_constants_of_motion(a, p, e, x):
     r"""Get Kerr constants of motion.
 
     Determines the constants of motion: :math:`(E, L, Q)` associated with a
@@ -1363,13 +1396,27 @@ def _get_separatrix_kernel_gpu(
         p_sep[i] = _get_separatrix_kernel_inner(a[i], e[i], x[i], tol=tol)
 
 
+@t.overload
 def get_separatrix(
-    a: Union[float, np.ndarray],
-    e: Union[float, np.ndarray],
-    x: Union[float, np.ndarray],
+    a: float,
+    e: float,
+    x: float,
     tol: float = 1e-13,
     use_gpu: bool = False,
-) -> Union[float, np.ndarray]:
+) -> float: ...
+
+
+@t.overload
+def get_separatrix(
+    a: np.ndarray,
+    e: np.ndarray,
+    x: np.ndarray,
+    tol: float = 1e-13,
+    use_gpu: bool = False,
+) -> np.ndarray: ...
+
+
+def get_separatrix(a, e, x, tol=1e-13, use_gpu=False):
     r"""Get separatrix in generic Kerr.
 
     Determines separatrix in generic Kerr from

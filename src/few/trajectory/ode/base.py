@@ -2,7 +2,7 @@
 Contains the ODEBase baseclass that handles evaluating the ODE
 """
 
-from typing import Optional, Type, Union
+import typing as t
 
 import numpy as np
 
@@ -150,12 +150,15 @@ class ODEBase:
         """
         return ydot
 
+    @t.overload
+    def min_p(self, e: float, x: float = 1.0, a: float | None = 0.0) -> float: ...
+
+    @t.overload
     def min_p(
-        self,
-        e: Union[float, np.ndarray],
-        x: Union[float, np.ndarray] = 1,
-        a: Optional[Union[float, np.ndarray]] = 0,
-    ) -> Union[float, np.ndarray]:
+        self, e: np.ndarray, x: np.ndarray, a: np.ndarray | None
+    ) -> np.ndarray: ...
+
+    def min_p(self, e, x=1.0, a=0.0):
         """
         Computes the minimum value of the radial coordinate p for a given eccentricity and inclination for this model.
         Trajectory models implementing their own interpolants should override this function to return the minimum value
@@ -165,12 +168,15 @@ class ODEBase:
         """
         return get_separatrix(a, e, x) + self.separatrix_buffer_dist
 
+    @t.overload
+    def max_p(self, e: float, x: float = 1.0, a: float | None = 0.0) -> float: ...
+
+    @t.overload
     def max_p(
-        self,
-        e: Union[float, np.ndarray],
-        x: Union[float, np.ndarray] = 1.0,
-        a: Optional[Union[float, np.ndarray]] = 0.0,
-    ) -> Union[float, np.ndarray]:
+        self, e: np.ndarray, x: np.ndarray, a: np.ndarray | None
+    ) -> np.ndarray: ...
+
+    def max_p(self, e, x=1.0, a=0.0):
         """
         Computes the maximum value of the semilatus rectum p for a given eccentricity and inclination for this model.
         Trajectory models implementing their own interpolants should override this function to return the maximum value
@@ -183,12 +189,15 @@ class ODEBase:
         else:
             return np.full_like(e, np.inf)
 
+    @t.overload
+    def min_e(self, p: float, x: float = 1.0, a: float | None = 0.0) -> float: ...
+
+    @t.overload
     def min_e(
-        self,
-        p: Union[float, np.ndarray],
-        x: Union[float, np.ndarray] = 1.0,
-        a: Optional[Union[float, np.ndarray]] = 0.0,
-    ) -> Union[float, np.ndarray]:
+        self, p: np.ndarray, x: np.ndarray, a: np.ndarray | None = None
+    ) -> np.ndarray: ...
+
+    def min_e(self, p, x=1.0, a=0.0):
         """
         Computes the minimum value of the eccentricity e for a given semilatus rectum and inclination for this model.
         Trajectory models implementing their own interpolants should override this function to return the minimum value
@@ -201,12 +210,15 @@ class ODEBase:
         else:
             return np.zeros_like(p)
 
+    @t.overload
+    def max_e(self, p: float, x: float = 1.0, a: float | None = 0.0) -> float: ...
+
+    @t.overload
     def max_e(
-        self,
-        p: Union[float, np.ndarray],
-        x: Union[float, np.ndarray] = 1,
-        a: Optional[Union[float, np.ndarray]] = 0,
-    ) -> Union[float, np.ndarray]:
+        self, p: np.ndarray, x: np.ndarray, a: np.ndarray | None = None
+    ) -> np.ndarray: ...
+
+    def max_e(self, p, x=1.0, a=0.0):
         """
         Computes the maximum value of the eccentricity e for a given semilatus rectum and inclination for this model.
         Trajectory models implementing their own interpolants should override this function to return the minimum value
@@ -278,7 +290,7 @@ class ODEBase:
         """
         return 1e10
 
-    def get_pex(self, y: np.ndarray) -> tuple[float]:
+    def get_pex(self, y: np.ndarray) -> tuple[float, float, float]:
         """
         This function converts the integrals of motion (E, L, Q) to the orbital elements (p, e, x), if required.
         """
@@ -316,9 +328,9 @@ class ODEBase:
 
     def __call__(
         self,
-        y: Union[list, np.ndarray],
-        out: Optional[np.ndarray] = None,
-        **kwargs: Optional[dict],
+        y: np.ndarray,
+        out: np.ndarray | None = None,
+        **kwargs: dict[str, t.Any],
     ) -> np.ndarray:
         in_bounds = self.cache_values_and_check_bounds(y)
 
@@ -350,19 +362,17 @@ class ODEBase:
         return self.__class__, (self.use_ELQ,)
 
 
-def _properties(cls: type) -> list[str]:
-    return [key for key, value in cls.__dict__.items() if isinstance(value, property)]
+def get_ode_properties(instance: ODEBase) -> dict[str, t.Any]:
+    import inspect
 
-
-def get_ode_properties(inst_cls: Type[ODEBase]):
-    cls = inst_cls.__class__
-
-    # first get all the properties of ODEBase
-    parent = cls.__bases__[0]
-    parentprops = _properties(parent)
-    props = {pkey: getattr(parent, pkey).fget(parent) for pkey in parentprops}
-
-    # now update with what is changed by this subclass
-    childprops = _properties(cls)
-    props.update({ckey: getattr(cls, ckey).fget(cls) for ckey in childprops})
-    return props
+    baseclass = type(instance)
+    properties = {}
+    for curclass in inspect.getmro(baseclass):
+        properties.update(
+            {
+                key: getattr(curclass, key).fget(curclass)
+                for key, item in curclass.__dict__.items()
+                if isinstance(item, property)
+            }
+        )
+    return properties

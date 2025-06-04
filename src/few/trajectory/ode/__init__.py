@@ -11,3 +11,5 @@ _STOCK_TRAJECTORY_OPTIONS = {
     "KerrEccEqFlux": KerrEccEqFlux,
     "PN5": PN5,
 }
+
+__all__ = ["_STOCK_TRAJECTORY_OPTIONS"]

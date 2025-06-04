@@ -48,7 +48,7 @@ class TrajectoryBase(Citable, abc.ABC):
         integrate_backwards: bool = False,
         max_step_size: Optional[float] = None,
         **kwargs,
-    ) -> tuple[np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Call function for trajectory interface.
 
         This is the function for calling the creation of the

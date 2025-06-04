@@ -25,10 +25,18 @@ try:
 
     _is_editable = True
     del _editable
-except (ModuleNotFoundError, ImportError):
+except ImportError:
     _is_editable = False
 
-from . import amplitude, cutils, files, summation, trajectory, utils, waveform
+from . import (
+    amplitude,
+    cutils,
+    files,
+    summation,
+    trajectory,
+    utils,
+    waveform,
+)
 from .utils.globals import (
     get_backend,
     get_config,

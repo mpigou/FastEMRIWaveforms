@@ -100,14 +100,14 @@ class FewXpNotDeducible(FewTypingException):
 
 
 if cp is not None:
-    xp2cp_beartype = beartype.beartype(
+    _xp2cp_beartype = beartype.beartype(
         conf=beartype.BeartypeConf(
             hint_overrides=beartype.FrozenDict({xp_ndarray: cp.ndarray})
         )
     )
 
 
-class XpTypeCheckDispatcher:
+class _XpTypeCheckDispatcher:
     """
     Object built for any callable decorated with xp_type_check and handling
     the dispatch to either a CPU or GPU runtime type checker.
@@ -130,7 +130,7 @@ class XpTypeCheckDispatcher:
         self.cpu_wrapped = beartype.beartype(wrapped)
 
         if cp is not None:
-            self.gpu_wrapped = xp2cp_beartype(wrapped)
+            self.gpu_wrapped = _xp2cp_beartype(wrapped)
         else:
             self.gpu_wrapped = None
 
@@ -211,7 +211,7 @@ def xp_type_check(wrapped: t.Callable) -> t.Callable:
         # shortcut that disables applying the decorator through global configuration
         return wrapped
 
-    dispatcher = XpTypeCheckDispatcher(wrapped)
+    dispatcher = _XpTypeCheckDispatcher(wrapped)
 
     if dispatcher.should_skip():
         return wrapped
@@ -253,3 +253,6 @@ def as_xp_array(value: ArrayLike, use_gpu: bool) -> xp_ndarray:
         return np.asarray(value).view(xp_ndarray)
     assert isinstance(value, xp_ndarray)
     return value
+
+
+__all__ = ["xp_type_check", "as_np_array", "as_xp_array", "ArrayLike", "xp_ndarray"]

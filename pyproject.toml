@@ -182,7 +182,13 @@ report.omit = [
 
 [tool.mypy]
 always_false = "TYPE_CHECKING_GPU_GUARD"
+files = [
+  "src/few/__init__.py",
+  "src/few/utils/mappings/pn.py",
+  "src/few/utils/utility.py",
+  "src/few/trajectory/ode/base.py",
+]
 
 [[tool.mypy.overrides]]
-module = [ "cupy.*", "wrapt.*" ]
+module = [ "cupy.*", "wrapt.*", "scipy.optimize.*", "numba.*" ]
 ignore_missing_imports = true

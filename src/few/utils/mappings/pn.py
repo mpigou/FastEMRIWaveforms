@@ -1,5 +1,5 @@
+import typing as t
 from math import sqrt
-from typing import Union
 
 import numpy as np
 from numba import njit
@@ -215,12 +215,13 @@ def _Y_to_xI_kernel(xI, a, p, e, Y):
             xI[i] = 0.0
 
 
+@t.overload
 def Y_to_xI(
-    a: Union[float, np.ndarray],
-    p: Union[float, np.ndarray],
-    e: Union[float, np.ndarray],
-    Y: Union[float, np.ndarray],
-) -> Union[float, np.ndarray]:
+    a: np.ndarray, p: np.ndarray, e: np.ndarray, Y: np.ndarray
+) -> np.ndarray: ...
+
+
+def Y_to_xI(a, p, e, Y):
     r"""Convert from :math:`Y=\cos{\iota}` to :math:`x_I=\cos{I}`.
 
     Converts between the two different inclination parameters. :math:`\cos{I}\equiv x_I`,
@@ -264,12 +265,17 @@ def Y_to_xI(
     return x
 
 
+@t.overload
+def xI_to_Y(a: float, p: float, e: float, x: float) -> float: ...
+
+
+@t.overload
 def xI_to_Y(
-    a: Union[float, np.ndarray],
-    p: Union[float, np.ndarray],
-    e: Union[float, np.ndarray],
-    x: Union[float, np.ndarray],
-) -> Union[float, np.ndarray]:
+    a: np.ndarray, p: np.ndarray, e: np.ndarray, x: np.ndarray
+) -> np.ndarray: ...
+
+
+def xI_to_Y(a, p, e, x):
     r"""Convert from :math:`x_I=\cos{I}` to :math:`Y=\cos{\iota}`.
 
     Converts between the two different inclination parameters. :math:`\cos{I}\equiv x_I`,

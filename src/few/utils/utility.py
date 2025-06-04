@@ -1,8 +1,9 @@
 # Utilities to aid in FastEMRIWaveforms Packages
 
+import typing as t
 from math import acos, cos, sqrt
-from typing import Optional
 
+import beartype.vale as btv
 import numpy as np
 from numba import njit
 from scipy.optimize import brentq
@@ -10,11 +11,14 @@ from scipy.optimize import brentq
 from few.utils.exceptions import TrajectoryOffGridException
 from few.utils.globals import get_first_backend, get_logger
 
+from ..trajectory.protocol import OdeProtocol
 from .constants import PI, YRSID_SI
+from .typing import xp_ndarray, xp_type_check
 
 
+@xp_type_check
 def get_overlap(
-    time_series_1: np.ndarray, time_series_2: np.ndarray, use_gpu: bool = False
+    time_series_1: xp_ndarray, time_series_2: xp_ndarray, use_gpu: bool = False
 ) -> float:
     r"""Calculate the overlap.
 
@@ -42,13 +46,8 @@ def get_overlap(
     else:
         xp = np
 
-    if not isinstance(time_series_1, xp.ndarray):
-        time_series_1 = xp.asarray(time_series_1)
-    if not isinstance(time_series_2, xp.ndarray):
-        time_series_2 = xp.asarray(time_series_2)
-
     # get the lesser of the two lengths
-    min_len = int(np.min([len(time_series_1), len(time_series_2)]))
+    min_len = min(len(time_series_1), len(time_series_2))
 
     if len(time_series_1) != len(time_series_2):
         import logging
@@ -75,8 +74,9 @@ def get_overlap(
     return ac.item().real if use_gpu else ac.real
 
 
+@xp_type_check
 def get_mismatch(
-    time_series_1: np.ndarray, time_series_2: np.ndarray, use_gpu: bool = False
+    time_series_1: xp_ndarray, time_series_2: xp_ndarray, use_gpu: bool = False
 ) -> float:
     """Calculate the mismatch.
 
@@ -238,13 +238,20 @@ def _brentq_jit(f, a, b, args, tol):
             e = d
 
 
+Bounds = t.Annotated[
+    list[float], btv.Is[lambda value: len(value) == 2 and value[0] < value[1]]
+]
+
+FreeBounds = t.Annotated[list[float | None], btv.Is[lambda value: len(value) == 2]]
+
+
 def get_at_t(
     traj_module: object,
     traj_args: list[float],
-    bounds: list[float],
+    bounds: Bounds,
     t_out: float,
     index_of_interest: int,
-    traj_kwargs: Optional[dict] = None,
+    traj_kwargs: dict | None = None,
     xtol: float = 2e-12,
     rtol: float = 8.881784197001252e-16,
 ) -> float:
@@ -301,15 +308,79 @@ def get_at_t(
     return root
 
 
+def _fix_bounds(
+    bounds: FreeBounds,
+    traj_func: OdeProtocol,
+    enforce_schwarz_sep: bool,
+    traj_args: list[float],
+    index_of_e: int,
+    index_of_x: int,
+    index_of_a: int,
+) -> Bounds:
+    lower_bound = bounds[0]
+    if lower_bound is None:
+        if enforce_schwarz_sep:
+            lower_bound = min(
+                traj_func.min_p(
+                    traj_args[index_of_e],
+                    x=traj_args[index_of_x],
+                    a=traj_args[index_of_a],
+                ),
+                6 + 2 * traj_args[index_of_e],
+            )
+        else:
+            lower_bound = traj_func.min_p(
+                traj_args[index_of_e], x=traj_args[index_of_x], a=traj_args[index_of_a]
+            )
+
+    upper_bound = bounds[1]
+    if upper_bound is None:
+        upper_bound = traj_func.max_p(
+            traj_args[index_of_e], x=traj_args[index_of_x], a=traj_args[index_of_a]
+        )
+
+    return [lower_bound, upper_bound]
+
+
+class TrajModuleProtocol(t.Protocol):
+    func: OdeProtocol
+
+    def __call__(
+        self,
+        *args,
+        in_coordinate_time: bool = True,
+        dt: float = 10.0,
+        T: float = 1.0,
+        new_t: np.ndarray | None = None,
+        spline_kwargs: dict[str, t.Any] | None = None,
+        DENSE_STEPPING: bool = False,
+        buffer_length: int = 1000,
+        upsample: bool = False,
+        err: float = 1e-11,
+        fix_t: bool = False,
+        integrate_backwards: bool = False,
+        max_step_size: float | None = None,
+        **kwargs,
+    ) -> tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ]: ...
+
+
 def get_p_at_t(
-    traj_module: object,
+    traj_module: TrajModuleProtocol,
     t_out: float,
     traj_args: list[float],
     index_of_p: int = 3,
     index_of_a: int = 2,
     index_of_e: int = 4,
     index_of_x: int = 5,
-    bounds: list[Optional[float]] = None,
+    bounds: FreeBounds | None = None,
     lower_bound_buffer: float = 1e-6,
     upper_bound_maximum: float = 1e6,
     **kwargs,
@@ -359,6 +430,7 @@ def get_p_at_t(
 
     if "traj_kwargs" in kwargs and "enforce_schwarz_sep" in kwargs["traj_kwargs"]:
         enforce_schwarz_sep = kwargs["traj_kwargs"]["enforce_schwarz_sep"]
+        assert isinstance(enforce_schwarz_sep, bool)
 
     else:
         enforce_schwarz_sep = False
@@ -367,42 +439,34 @@ def get_p_at_t(
     if bounds is None:
         bounds = [None, None]
 
-    if bounds[0] is None:
-        if not enforce_schwarz_sep:
-            bounds[0] = traj_module.func.min_p(
-                traj_args[index_of_e], x=traj_args[index_of_x], a=traj_args[index_of_a]
-            )
-        else:
-            bounds[0] = min(
-                traj_module.func.min_p(
-                    traj_args[index_of_e],
-                    x=traj_args[index_of_x],
-                    a=traj_args[index_of_a],
-                ),
-                6 + 2 * traj_args[index_of_e],
-            )
+    fixed_bounds: Bounds = _fix_bounds(
+        bounds,
+        traj_module.func,
+        enforce_schwarz_sep,
+        traj_args,
+        index_of_e,
+        index_of_x,
+        index_of_a,
+    )
 
-    if bounds[1] is None:
-        bounds[1] = traj_module.func.max_p(
-            traj_args[index_of_e], x=traj_args[index_of_x], a=traj_args[index_of_a]
-        )
     # Adding a buffer to prevent starting trajectories on the separatrix
-    bounds[0] += lower_bound_buffer
+    fixed_bounds[0] += lower_bound_buffer
 
     # Prevent the rootfinder from starting at infinity
-    if bounds[1] == float("inf"):
-        bounds[1] = upper_bound_maximum
+    if fixed_bounds[1] == float("inf"):
+        fixed_bounds[1] = upper_bound_maximum
 
+    # With the varying bounds of eccentricity used for KerrEccEqFlux,
     # With the varying bounds of eccentricity used for KerrEccEqFlux,
     # it is possible to have no solution within the bounds of the interpolants
     # It might also be possible for the trajectory to evolve off of the grid
-    while bounds[0] < bounds[1]:
+    while fixed_bounds[0] < fixed_bounds[1]:
         try:
             traj_pars = [
                 traj_args[0],
                 traj_args[1],
                 traj_args[index_of_a],
-                bounds[0],
+                fixed_bounds[0],
                 traj_args[index_of_e],
                 traj_args[index_of_x],
             ]
@@ -417,18 +481,18 @@ def get_p_at_t(
         except TrajectoryOffGridException:
             # Trajectory is off the grid
             # Increase lower bound and try again
-            bounds[0] += 1e-2
+            fixed_bounds[0] += 1e-2
 
-    root = get_at_t(traj_module, traj_args, bounds, t_out, index_of_p, **kwargs)
+    root = get_at_t(traj_module, traj_args, fixed_bounds, t_out, index_of_p, **kwargs)
     return root
 
 
 def get_m2_at_t(
-    traj_module: object,
+    traj_module: TrajModuleProtocol,
     t_out: float,
     traj_args: list[float],
     index_of_m2: int = 1,
-    bounds: list[Optional[float]] = None,
+    bounds: FreeBounds | None = None,
     **kwargs,
 ) -> float:
     """Find the value of m2 that will give a specific length inspiral using Brent's method.
@@ -462,19 +526,18 @@ def get_m2_at_t(
     """
 
     # fix bounds
+    fixed_bounds: Bounds
     if bounds is None:
-        bounds = [1e-1, traj_args[0]]
-
-    elif bounds[0] is None:
-        bounds[0] = 1e-1
-
-    elif bounds[1] is None:
-        bounds[1] = traj_args[0]
+        fixed_bounds = [1e-1, traj_args[0]]
+    else:
+        lower_bound = bounds[0] if bounds[0] is not None else 1e-1
+        upper_bound = bounds[1] if bounds[1] is not None else traj_args[0]
+        fixed_bounds = [lower_bound, upper_bound]
 
     # Check lower bound
     traj_pars = [
         traj_args[0],
-        bounds[0],
+        fixed_bounds[0],
         traj_args[1],
         traj_args[2],
         traj_args[3],
@@ -487,7 +550,7 @@ def get_m2_at_t(
     # Check lower bound
     traj_pars = [
         traj_args[0],
-        bounds[1],
+        fixed_bounds[1],
         traj_args[1],
         traj_args[2],
         traj_args[3],
@@ -497,7 +560,7 @@ def get_m2_at_t(
     if t[-1] >= t_out * YRSID_SI:
         raise ValueError("No solution found within the bounds for secondary mass.")
 
-    root = get_at_t(traj_module, traj_args, bounds, t_out, index_of_m2, **kwargs)
+    root = get_at_t(traj_module, traj_args, fixed_bounds, t_out, index_of_m2, **kwargs)
     return root
 
 
