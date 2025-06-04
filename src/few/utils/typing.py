@@ -99,12 +99,30 @@ class FewXpNotDeducible(FewTypingException):
         return f"Could not deduce meaning of 'xp' for {name} {self.formatted_location()} for instance={self.instance} and arguments: {self.bound_args}"
 
 
+class FewTypeHintViolation(FewTypingException):
+    """Exception raised on type hint violation."""
+
+
 if cp is not None:
     _xp2cp_beartype = beartype.beartype(
         conf=beartype.BeartypeConf(
-            hint_overrides=beartype.FrozenDict({xp_ndarray: cp.ndarray})
+            hint_overrides=beartype.FrozenDict({xp_ndarray: cp.ndarray}),
+            violation_param_type=FewTypeHintViolation,
         )
     )
+
+_xp_maybe_np_beartype = beartype.beartype(
+    conf=beartype.BeartypeConf(
+        hint_overrides=beartype.FrozenDict({xp_ndarray: np.ndarray | xp_ndarray}),
+        violation_param_type=FewTypeHintViolation,
+    )
+)
+
+_bare_beartype = beartype.beartype(
+    conf=beartype.BeartypeConf(
+        violation_param_type=FewTypeHintViolation,
+    )
+)
 
 
 class _XpTypeCheckDispatcher:
@@ -119,7 +137,7 @@ class _XpTypeCheckDispatcher:
 
     _signature: inspect.Signature
 
-    def __init__(self, wrapped: t.Callable):
+    def __init__(self, wrapped: t.Callable, need_get: bool):
         if (not inspect.isfunction(wrapped)) and (not inspect.ismethod(wrapped)):
             raise FewXpTypeCheckInvalidTarget(
                 "@xp_type_check decorator should only be applied on "
@@ -127,7 +145,9 @@ class _XpTypeCheckDispatcher:
             )
 
         self.bare_wrapped = wrapped
-        self.cpu_wrapped = beartype.beartype(wrapped)
+        self.cpu_wrapped = (
+            _bare_beartype(wrapped) if need_get else _xp_maybe_np_beartype(wrapped)
+        )
 
         if cp is not None:
             self.gpu_wrapped = _xp2cp_beartype(wrapped)
@@ -158,6 +178,7 @@ class _XpTypeCheckDispatcher:
             if (instance is None)
             else self._signature.bind(instance, *args, **kwargs)
         )
+        bound_args.apply_defaults()
 
         if (
             isinstance(instance, ParallelModuleBase)
@@ -190,7 +211,7 @@ class _XpTypeCheckDispatcher:
         )
 
 
-def xp_type_check(wrapped: t.Callable) -> t.Callable:
+class _xp_type_check:
     """
     Decorator applied on functions whose type hints must be analyzed at runtime.
 
@@ -206,20 +227,46 @@ def xp_type_check(wrapped: t.Callable) -> t.Callable:
         defined `force_backend`
       - Any instance method of a ParallelModuleBase derivate class
 
+    If 'need_get' is False, the 'xp_ndarray' annotations are interpreted only
+    as indication that we authorize memory to live either on CPU or GPU but the
+    function does not make use of the .get() method.
+
     """
-    if _xp_type_check_is_disabled():
-        # shortcut that disables applying the decorator through global configuration
-        return wrapped
 
-    dispatcher = _XpTypeCheckDispatcher(wrapped)
+    _need_get: bool
 
-    if dispatcher.should_skip():
-        return wrapped
+    def __init__(self, need_get: bool = True):
+        self._need_get = need_get
 
-    if not dispatcher.should_dispatch():
-        return dispatcher.cpu_wrapped
+    def __call__(self, wrapped: t.Callable) -> t.Callable:
+        if _xp_type_check_is_disabled():
+            # shortcut that disables applying the decorator through global configuration
+            return wrapped
 
-    return dispatcher(wrapped)
+        dispatcher = _XpTypeCheckDispatcher(wrapped, self._need_get)
+
+        if dispatcher.should_skip():
+            return wrapped
+
+        if not dispatcher.should_dispatch():
+            return dispatcher.cpu_wrapped
+
+        return dispatcher(wrapped)
+
+
+@t.overload
+def xp_type_check(need_get: bool = True): ...
+
+
+@t.overload
+def xp_type_check(wrapped: t.Callable): ...
+
+
+def xp_type_check(*args, **kwargs):
+    if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+        return _xp_type_check()(args[0])
+    else:
+        return _xp_type_check(*args, **kwargs)
 
 
 def as_np_array(value: ArrayLike) -> np_ndarray:

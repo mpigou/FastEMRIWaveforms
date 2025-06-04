@@ -16,7 +16,7 @@ from .constants import PI, YRSID_SI
 from .typing import xp_ndarray, xp_type_check
 
 
-@xp_type_check
+@xp_type_check(need_get=False)
 def get_overlap(
     time_series_1: xp_ndarray, time_series_2: xp_ndarray, use_gpu: bool = False
 ) -> float:
@@ -74,7 +74,7 @@ def get_overlap(
     return ac.item().real if use_gpu else ac.real
 
 
-@xp_type_check
+@xp_type_check(need_get=False)
 def get_mismatch(
     time_series_1: xp_ndarray, time_series_2: xp_ndarray, use_gpu: bool = False
 ) -> float:
