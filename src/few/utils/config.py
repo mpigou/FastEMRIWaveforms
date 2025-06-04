@@ -93,42 +93,9 @@ class ConfigEntry(Generic[T]):
 
 
 def compatibility_isinstance(obj, cls) -> bool:
-    import sys
-    import typing
+    import beartype.door
 
-    if (sys.version_info >= (3, 10)) or (typing.get_origin(cls) is None):
-        try:
-            return isinstance(obj, cls)
-        except TypeError:
-            pass
-
-    if typing.get_origin(cls) is typing.Union:
-        for arg in typing.get_args(cls):
-            if compatibility_isinstance(obj, arg):
-                return True
-        return False
-
-    if typing.get_origin(cls) is list:
-        if not isinstance(obj, list):
-            return False
-        for item in obj:
-            if not compatibility_isinstance(item, typing.get_args(cls)[0]):
-                return False
-        return True
-
-    import collections.abc
-
-    if typing.get_origin(cls) is collections.abc.Sequence:
-        if not hasattr(obj, "__iter__"):
-            return False
-        for item in obj:
-            if not compatibility_isinstance(item, typing.get_args(cls)[0]):
-                return False
-        return True
-
-    raise NotImplementedError(
-        "Compatiblity wrapper for isinstance on Python 3.9 does not support given type."
-    )
+    return beartype.door.is_bearable(obj, cls)
 
 
 @dataclasses.dataclass
