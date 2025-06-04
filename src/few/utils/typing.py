@@ -199,11 +199,12 @@ class _XpTypeCheckDispatcher:
 
     @wrapt.decorator
     def __call__(self, _, instance, args, kwargs):
-        wrapper = (
-            self.gpu_wrapped
-            if self.is_gpu_context(instance, args, kwargs)
-            else self.cpu_wrapped
-        )
+        wrapper: t.Callable
+        if self.is_gpu_context(instance, args, kwargs):
+            assert self.gpu_wrapped is not None
+            wrapper = self.gpu_wrapped
+        else:
+            wrapper = self.cpu_wrapped
         return (
             wrapper(*args, **kwargs)
             if instance is None
