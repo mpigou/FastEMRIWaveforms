@@ -15,12 +15,10 @@ import numpy as np
 
 # Python imports
 from ..cutils import Backend
-from ..utils.citations import REFERENCE, Citable
-from ..utils.globals import get_backend, get_first_backend, get_logger
-from ..utils.mappings.kerrecceq import kerrecceq_forward_map
-
-xp_ndarray = TypeVar("xp_ndarray")
-"""Generic alias for backend ndarray"""
+from .citations import REFERENCE, Citable
+from .globals import get_backend, get_first_backend, get_logger
+from .mappings.kerrecceq import kerrecceq_forward_map
+from .typing import xp_ndarray
 
 BackendLike = Union[str, Backend, None]
 """Type hint to declare a backend in constructor."""
