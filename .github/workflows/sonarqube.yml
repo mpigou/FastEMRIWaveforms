@@ -1,0 +1,19 @@
+name: Build
+on:
+  push:
+    branches:
+      - Kerr_Equatorial_Eccentric
+      - ci-sonarqube
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    environment: sonarqube
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+      - uses: sonarsource/sonarqube-scan-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
