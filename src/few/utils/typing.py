@@ -5,6 +5,7 @@ import inspect
 import typing as t
 
 import beartype
+import beartype.door
 import numpy as np
 import wrapt
 from numpy import ndarray as np_ndarray
@@ -25,7 +26,13 @@ class xp_ndarray(np_ndarray):
         return self.view(np_ndarray)
 
 
-ArrayLike: t.TypeAlias = float | np_ndarray | xp_ndarray
+ArrayLike: t.TypeAlias = (
+    float
+    | np_ndarray
+    | xp_ndarray
+    | list[int | float | bool]
+    | list[list[int | float | bool]]
+)
 
 TYPE_CHECKING_GPU_GUARD: bool = True
 """
@@ -104,25 +111,24 @@ class FewTypeHintViolation(FewTypingException):
 
 
 if cp is not None:
-    _xp2cp_beartype = beartype.beartype(
-        conf=beartype.BeartypeConf(
-            hint_overrides=beartype.FrozenDict({xp_ndarray: cp.ndarray}),
-            violation_param_type=FewTypeHintViolation,
-        )
-    )
-
-_xp_maybe_np_beartype = beartype.beartype(
-    conf=beartype.BeartypeConf(
-        hint_overrides=beartype.FrozenDict({xp_ndarray: np.ndarray | xp_ndarray}),
+    _XP_2_CP_CONF = beartype.BeartypeConf(
+        hint_overrides=beartype.FrozenDict({xp_ndarray: cp.ndarray}),
         violation_param_type=FewTypeHintViolation,
     )
+    _xp2cp_beartype = beartype.beartype(conf=_XP_2_CP_CONF)
+
+_XP_2_NP_OR_XP_CONF = beartype.BeartypeConf(
+    hint_overrides=beartype.FrozenDict({xp_ndarray: np.ndarray | xp_ndarray}),
+    violation_param_type=FewTypeHintViolation,
 )
 
-_bare_beartype = beartype.beartype(
-    conf=beartype.BeartypeConf(
-        violation_param_type=FewTypeHintViolation,
-    )
+_xp_maybe_np_beartype = beartype.beartype(conf=_XP_2_NP_OR_XP_CONF)
+
+_XP_2_XP_CONF = beartype.BeartypeConf(
+    violation_param_type=FewTypeHintViolation,
 )
+
+_bare_beartype = beartype.beartype(conf=_XP_2_XP_CONF)
 
 
 class _XpTypeCheckDispatcher:
@@ -289,7 +295,6 @@ def as_xp_array(value: ArrayLike, use_gpu: bool) -> xp_ndarray:
     if use_gpu and TYPE_CHECKING_GPU_GUARD:
         if isinstance(value, cp.ndarray):
             return value
-        assert isinstance(value, (float, np_ndarray, xp_ndarray))
         return cp.asarray(value)
 
     if TYPE_CHECKING_GPU_GUARD and (cp is not None) and isinstance(value, cp.ndarray):
@@ -297,10 +302,30 @@ def as_xp_array(value: ArrayLike, use_gpu: bool) -> xp_ndarray:
 
     if isinstance(value, np_ndarray):
         return value.view(xp_ndarray)
-    if isinstance(value, float):
-        return np.asarray(value).view(xp_ndarray)
-    assert isinstance(value, xp_ndarray)
-    return value
+    if isinstance(value, xp_ndarray):
+        return value
+    return np.asarray(value).view(xp_ndarray)
+
+
+def matches_hint(
+    value: object, hint: t.Any, /, use_gpu: bool = False, need_get: bool = True
+) -> bool:
+    """
+    Wraps beartype to assess that an object matches a given hint.
+    To be used in assertions throughout the code like:
+
+        myvar: ItsHint = other_function(...)
+        assert matches_hint(myvar, ItsHint)
+
+    This assertion will be automatically skipped when running in optimized mode.
+    """
+    conf = (
+        _XP_2_CP_CONF
+        if use_gpu
+        else (_XP_2_XP_CONF if need_get else _XP_2_NP_OR_XP_CONF)
+    )
+    beartype.door.die_if_unbearable(obj=value, hint=hint, conf=conf)
+    return True
 
 
 __all__ = ["xp_type_check", "as_np_array", "as_xp_array", "ArrayLike", "xp_ndarray"]

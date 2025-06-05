@@ -190,7 +190,7 @@ files = [
   # "src/few/utils/config.py",
   # "src/few/utils/citations.py",
   "src/few/utils/typing.py",
-  # "src/few/utils/baseclasses.py",
+  "src/few/utils/baseclasses.py",
   # "src/few/utils/fdutils.py",
   # "src/few/utils/elliptic.py",
   "src/few/utils/mappings/pn.py",

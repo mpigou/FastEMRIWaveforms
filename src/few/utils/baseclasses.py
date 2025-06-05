@@ -9,7 +9,7 @@ a common interface and pass information related to each model.
 from __future__ import annotations
 
 import types
-from typing import Optional, Sequence, TypeVar, Union
+import typing as t
 
 import numpy as np
 
@@ -18,10 +18,13 @@ from ..cutils import Backend
 from .citations import REFERENCE, Citable
 from .globals import get_backend, get_first_backend, get_logger
 from .mappings.kerrecceq import kerrecceq_forward_map
-from .typing import xp_ndarray
+from .typing import ArrayLike, as_xp_array, matches_hint, xp_ndarray, xp_type_check
 
-BackendLike = Union[str, Backend, None]
+BackendLike = Backend | str | None
 """Type hint to declare a backend in constructor."""
+
+ModeIndices: t.TypeAlias = tuple[int, int, int]
+ModeIndicesMapping: t.TypeAlias = dict[ModeIndices, int]
 
 
 class ParallelModuleBase(Citable):
@@ -55,7 +58,7 @@ class ParallelModuleBase(Citable):
         return get_backend(self._backend_name)
 
     @classmethod
-    def supported_backends(cls) -> Sequence[str]:
+    def supported_backends(cls) -> t.Sequence[str]:
         """List of backends supported by a parallel module by order of preference."""
         raise NotImplementedError(
             "Class {} does not implement the supported_backends method.".format(cls)
@@ -91,15 +94,15 @@ class ParallelModuleBase(Citable):
         """Return the name of current backend"""
         return self.backend.name
 
-    ParallelModuleDerivate = TypeVar(
+    ParallelModuleDerivate = t.TypeVar(
         "ParallelModuleDerivate", bound="ParallelModuleBase"
     )
 
     def build_with_same_backend(
         self,
         module_class: type[ParallelModuleDerivate],
-        args: Optional[list] = None,
-        kwargs: Optional[dict] = None,
+        args: list | None = None,
+        kwargs: dict | None = None,
     ) -> ParallelModuleDerivate:
         """
         Build an instance of `module_class` with same backend as current object.
@@ -113,12 +116,16 @@ class ParallelModuleBase(Citable):
         args = [] if args is None else args
         return module_class(*args, **self.adapt_backend_kwargs(kwargs=kwargs))
 
-    def adapt_backend_kwargs(self, kwargs: Optional[dict] = None) -> dict:
+    def adapt_backend_kwargs(self, kwargs: dict | None = None) -> dict:
         """Adapt a set of keyword arguments to add/set 'force_backend' to current backend"""
         if kwargs is None:
             kwargs = {}
         kwargs["force_backend"] = self.backend_name
         return kwargs
+
+    @xp_type_check
+    def as_xp_array(self, value: ArrayLike) -> xp_ndarray:
+        return as_xp_array(value, self.backend.uses_cupy)
 
 
 class SphericalHarmonic(ParallelModuleBase):
@@ -161,7 +168,7 @@ class SphericalHarmonic(ParallelModuleBase):
     n_arr_no_mask: xp_ndarray
     """1D Array of n values for each mode before masking."""
 
-    lmn_indices: dict[int, int]
+    lmn_indices: ModeIndicesMapping
     """Dictionary of mode indices to mode number."""
 
     m0mask: xp_ndarray
@@ -209,18 +216,18 @@ class SphericalHarmonic(ParallelModuleBase):
         self.nmax = nmax
 
         # fill all lmn mode values
-        md = []
+        md_list = []
         for l in range(2, self.lmax + 1):
             for m in range(0, l + 1):
                 for n in range(-self.nmax, self.nmax + 1):
-                    md.append([l, m, n])
+                    md_list.append([l, m, n])
 
         # total number of modes in the model
-        self.num_modes = len(md)
+        self.num_modes = len(md_list)
         self.num_teuk_modes = self.num_modes
 
         # mask for m == 0
-        m0mask = self.xp.array(
+        m0mask = self.as_xp_array(
             [
                 m == 0
                 for l in range(2, self.lmax + 1)
@@ -238,18 +245,20 @@ class SphericalHarmonic(ParallelModuleBase):
         )
 
         # sorts the mode indexes
-        md = self.xp.asarray(md).T[:, m0sort].astype(self.xp.int32)
+        md = self.as_xp_array(
+            self.as_xp_array(md_list).T[:, m0sort].astype(self.xp.int32)
+        )
 
         # store l m and n values
         self.l_arr_no_mask = md[0]
         self.m_arr_no_mask = md[1]
         self.n_arr_no_mask = md[2]
 
-        # adjust with .get method for cupy
-        if self.backend.uses_cupy:
-            lmn_indices = {tuple(md_i): i for i, md_i in enumerate(md.T.get())}
-        else:
-            lmn_indices = {tuple(md_i): i for i, md_i in enumerate(md.T)}
+        lmn_indices: ModeIndicesMapping = {
+            (int(md_i[0]), int(md_i[1]), int(md_i[2])): i
+            for i, md_i in enumerate(md.T.get())
+        }
+        assert matches_hint(lmn_indices, ModeIndicesMapping)
 
         self.lmn_indices = lmn_indices
 
@@ -266,35 +275,31 @@ class SphericalHarmonic(ParallelModuleBase):
         self.num_m_1_up = self.num_m_zero_up - self.num_m0
 
         # create final arrays to include -m modes
-        self.l_arr = self.xp.concatenate(
-            [self.l_arr_no_mask, self.l_arr_no_mask[self.m0mask]]
+        self.l_arr = self.as_xp_array(
+            self.xp.concatenate([self.l_arr_no_mask, self.l_arr_no_mask[self.m0mask]])
         )
-        self.m_arr = self.xp.concatenate(
-            [self.m_arr_no_mask, -self.m_arr_no_mask[self.m0mask]]
+        self.m_arr = self.as_xp_array(
+            self.xp.concatenate([self.m_arr_no_mask, -self.m_arr_no_mask[self.m0mask]])
         )
-        self.n_arr = self.xp.concatenate(
-            [self.n_arr_no_mask, self.n_arr_no_mask[self.m0mask]]
+        self.n_arr = self.as_xp_array(
+            self.xp.concatenate([self.n_arr_no_mask, self.n_arr_no_mask[self.m0mask]])
         )
 
         # mask for m >= 0
-        self.m_zero_up_mask = self.m_arr >= 0
+        self.m_zero_up_mask = self.as_xp_array(self.m_arr >= 0)
 
         # find unique sets of (l,m)
         # create inverse array to build full (l,m,n) from unique l and m
         # also adjust for cupy
-        if self.backend.uses_cupy:
-            temp, self.inverse_lm = np.unique(
-                np.asarray([self.l_arr.get(), self.m_arr.get()]).T,
-                axis=0,
-                return_inverse=True,
-            )
-        else:
-            temp, self.inverse_lm = np.unique(
-                np.asarray([self.l_arr, self.m_arr]).T, axis=0, return_inverse=True
-            )
+
+        temp, self.inverse_lm = np.unique(
+            np.asarray([self.l_arr.get(), self.m_arr.get()]).T,
+            axis=0,
+            return_inverse=True,
+        )
 
         # unique values of l and m
-        unique_l, unique_m = self.xp.asarray(temp).T
+        unique_l, unique_m = self.as_xp_array(temp).T
         self.unique_l = unique_l
         self.unique_m = unique_m
 
@@ -318,14 +323,13 @@ class SphericalHarmonic(ParallelModuleBase):
             )
             - 1
         )
-        for i, (l, m, n) in enumerate(zip(self.l_arr, self.m_arr, self.n_arr)):
-            try:
-                l = l.item()
-                m = m.item()
-                n = n.item()
-
-            except AttributeError:
-                pass
+        l_a: np.ndarray
+        m_a: np.ndarray
+        n_a: np.ndarray
+        for i, (l_a, m_a, n_a) in enumerate(zip(self.l_arr, self.m_arr, self.n_arr)):
+            l = l_a.item()
+            m = m_a.item()
+            n = n_a.item()
 
             # regular index to mode tuple
             self.index_map[(l, m, n)] = i
@@ -349,11 +353,11 @@ class SphericalHarmonic(ParallelModuleBase):
         self.negative_mode_indexes = self.xp.linspace(
             0, self.num_teuk_modes - 1, self.num_teuk_modes, dtype=int
         )
-        for i, (l, m, n) in enumerate(
+        for i, (l_a, m_a, n_a) in enumerate(
             zip(self.l_arr_no_mask, self.m_arr_no_mask, self.n_arr_no_mask)
         ):
             self.negative_mode_indexes[i] = self.special_index_map[
-                (l.item(), -m.item(), n.item())
+                (l_a.item(), -m_a.item(), n_a.item())
             ]
 
     def sanity_check_viewing_angles(self, theta: float, phi: float):
@@ -478,7 +482,7 @@ class SchwarzschildEccentric(SphericalHarmonic):
             ValueError: If any of the parameters are not allowed.
 
         """
-        for val, key in [[m1, "m1"], [p0, "p0"], [e0, "e0"], [m2, "m2"]]:
+        for val, key in zip((m1, p0, e0, m2), ("m1", "p0", "e0", "m2")):
             test = val < 0.0
             if test:
                 raise ValueError("{} is negative. It must be positive.".format(key))
@@ -592,7 +596,7 @@ class KerrEccentricEquatorial(SphericalHarmonic):
         """
         # TODO: update function when grids replaced
 
-        for val, key in [[m1, "m1"], [p0, "p0"], [e0, "e0"], [m2, "m2"]]:
+        for val, key in zip((m1, p0, e0, m2), ("m1", "p0", "e0", "m2")):
             test = val < 0.0
             if test:
                 raise ValueError("{} is negative. It must be positive.".format(key))
@@ -662,9 +666,9 @@ class Pn5AAK(Citable):
     """If True, model expects inclination parameter Y (rather than xI)."""
 
     @classmethod
-    def module_references(cls) -> list[REFERENCE]:
+    def module_references(cls):
         """Return citations related to this module"""
-        return [REFERENCE.PN5] + super().module_references()
+        return super().module_references() + [REFERENCE.PN5]
 
     def sanity_check_angles(self, qS: float, phiS: float, qK: float, phiK: float):
         """Sanity check on viewing angles.
@@ -751,7 +755,7 @@ class Pn5AAK(Citable):
 
         """
 
-        for val, key in [[m1, "m1"], [p0, "p0"], [e0, "e0"], [m2, "m2"]]:
+        for val, key in zip((m1, p0, e0, m2), ("m1", "p0", "e0", "m2")):
             test = val < 0.0
             if test:
                 raise ValueError("{} is negative. It must be positive.".format(key))
