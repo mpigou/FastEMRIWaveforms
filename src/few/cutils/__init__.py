@@ -346,7 +346,7 @@ class _CudaBackend(Backend):
         backend_module_name: str,
         cuda_min: tuple[int, int],  # Inclusive minimum
         cuda_max: tuple[int, int],  # Exclusive maximum
-        module_loader: t.Callable[[], None],  # Method loading
+        module_loader: t.Callable[[], BackendMethods],  # Method loading
         dynlib_loader: t.Callable[[], None] | None = None,
     ) -> BackendMethods:
         """Perform all tests to ensure that a CUDA backend can be used"""
@@ -415,7 +415,7 @@ class Cuda11xBackend(_CudaBackend):
     """Implementation of CUDA 11.x backend"""
 
     @staticmethod
-    def cuda11x_module_loader():
+    def cuda11x_module_loader() -> BackendMethods:
         try:
             import few_backend_cuda11x.pyAAK
             import few_backend_cuda11x.pyAmpInterp2D
@@ -513,7 +513,7 @@ class Cuda12xBackend(_CudaBackend):
     """Implementation of CUDA 12.x backend"""
 
     @staticmethod
-    def cuda12x_module_loader():
+    def cuda12x_module_loader() -> BackendMethods:
         try:
             import few_backend_cuda12x.pyAAK
             import few_backend_cuda12x.pyAmpInterp2D
@@ -528,7 +528,9 @@ class Cuda12xBackend(_CudaBackend):
             import cupy
         except (ModuleNotFoundError, ImportError) as e:
             raise MissingDependencies(
-                "'cuda12x' backend requires cupy", pip_deps=["cupy-cuda12x"]
+                "'cuda12x' backend requires cupy",
+                pip_deps=["cupy-cuda12x"],
+                conda_deps=[],
             ) from e
 
         return BackendMethods(
@@ -635,13 +637,13 @@ class BackendStatusDisabled(BackendStatus):
 
 
 @dataclasses.dataclass
-class BackendStatusUnavailable:
+class BackendStatusUnavailable(BackendStatus):
     """Backend could not be loaded due to exception"""
 
     reason: BackendUnavailableException
 
 
-class BackendAccessException(FewException):
+class BackendAccessException(BackendUnavailableException):
     """Method raised by BackendManager if requested backend cannot be accessed"""
 
 
@@ -700,6 +702,7 @@ class BackendsManager:
         ):
             return current_status
 
+        new_status: BackendStatus
         try:
             new_status = BackendStatusLoaded(instance=KNOWN_BACKENDS[backend_name]())
         except BackendUnavailableException as e:
