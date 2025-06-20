@@ -131,7 +131,7 @@ class ODEBase:
         else:
             self.num_add_args = len(additional_args)
 
-    def evaluate_rhs(self, y: np.ndarray, **kwargs) -> NotImplementedError:
+    def evaluate_rhs(self, y: np.ndarray, **kwargs) -> np.ndarray:
         """
         This function evaluates the right-hand side of the ODE at the point y.
         An ODE model can be defined by subclassing the ODEBase class and implementing this method.

@@ -8,7 +8,6 @@ a common interface and pass information related to each model.
 
 from __future__ import annotations
 
-import types
 import typing as t
 
 import numpy as np
@@ -85,7 +84,7 @@ class ParallelModuleBase(Citable):
         return ["cuda12x", "cuda11x"]
 
     @property
-    def xp(self) -> types.ModuleType:
+    def xp(self):
         """Return the module providing ndarray capabilities"""
         return self.backend.xp
 

@@ -1,5 +1,3 @@
-from typing import Optional, Union
-
 import numpy as np
 
 from ..utils.citations import Citable
@@ -18,7 +16,6 @@ class AmplitudeBase(Citable):
 
     """
 
-    @classmethod
     def get_amplitudes(self, *args, **kwargs):
         """Amplitude Generator
 
@@ -31,8 +28,8 @@ class AmplitudeBase(Citable):
         raise NotImplementedError
 
     def __call__(
-        self, *args, specific_modes: Optional[Union[list, np.ndarray]] = None, **kwargs
-    ) -> Union[dict, np.ndarray]:
+        self, *args, specific_modes: list | np.ndarray | None = None, **kwargs
+    ) -> dict | np.ndarray:
         """Common call for Teukolsky amplitudes
 
         This function takes the inputs the trajectory in :math:`(p,e)` as arrays

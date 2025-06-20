@@ -82,6 +82,12 @@ optional-dependencies.sampling = [
   "lisatools",
 ]
 
+optional-dependencies.stubs = [
+  "scipy-stubs",
+  "types-jsonschema",
+  "types-pyyaml",
+]
+
 optional-dependencies.testing = [ "matplotlib" ]
 
 urls.Documentation = "https://bhptoolkit.org/FastEMRIWaveforms/html/index.html"
@@ -190,7 +196,7 @@ files = [
   # "src/few/utils/constants.py",
   "src/few/utils/geodesic.py",
   # "src/few/utils/config.py",
-  # "src/few/utils/citations.py",
+  "src/few/utils/citations.py",
   "src/few/utils/typing.py",
   "src/few/utils/baseclasses.py",
   # "src/few/utils/fdutils.py",
@@ -212,7 +218,7 @@ files = [
   # "src/few/cutils/__init__.py",
   "src/few/_editable.py",
   "src/few/tests/base.py",
-  # "src/few/amplitude/ampinterp2d.py",
+  "src/few/amplitude/ampinterp2d.py",
   # "src/few/amplitude/romannet.py",
   "src/few/amplitude/__init__.py",
   "src/few/amplitude/base.py",
@@ -239,5 +245,5 @@ files = [
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = [ "cupy.*", "wrapt.*", "scipy.optimize.*", "numba.*" ]
+module = [ "cupy.*", "wrapt.*", "scipy.optimize.*", "numba.*", "h5py.*" ]
 ignore_missing_imports = true

@@ -4,7 +4,6 @@
 import os
 import pathlib
 from copy import deepcopy
-from typing import List, Optional, Union
 
 import h5py
 import numpy as np
@@ -17,11 +16,11 @@ from ..utils.baseclasses import (
     KerrEccentricEquatorial,
     ParallelModuleBase,
     SchwarzschildEccentric,
-    xp_ndarray,
 )
 from ..utils.citations import REFERENCE
 from ..utils.mappings.kerrecceq import kerrecceq_forward_map
 from ..utils.mappings.schwarzecc import schwarzecc_p_to_y
+from ..utils.typing import xp_ndarray, xp_type_check
 from .base import AmplitudeBase
 
 # get path to this file
@@ -102,14 +101,15 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
     len_indiv_c: int
     """Total number of coefficients per mode amplitude grid."""
 
+    @xp_type_check(need_get=False)
     def __init__(
         self,
-        w_knots: np.ndarray,
-        u_knots: np.ndarray,
-        coefficients: np.ndarray,
-        l_arr: np.ndarray,
-        m_arr: np.ndarray,
-        n_arr: np.ndarray,
+        w_knots: xp_ndarray,
+        u_knots: xp_ndarray,
+        coefficients: xp_ndarray,
+        l_arr: xp_ndarray,
+        m_arr: xp_ndarray,
+        n_arr: xp_ndarray,
         force_backend: BackendLike = None,
     ):
         AmplitudeBase.__init__(self)
@@ -121,13 +121,9 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
 
         self.num_teuk_modes = coefficients.shape[0]
 
-        self.knots = [
-            self.xp.asarray(w_knots),
-            self.xp.asarray(u_knots),
-        ]
+        self.knots = [w_knots, u_knots]
 
-        self.coeff = self.xp.asarray(coefficients)
-        """np.ndarray: Array holding all spline coefficient information."""
+        self.coeff = coefficients
 
         # for mode_ind in range(self.num_teuk_modes):
         #     spl1 = RectBivariateSpline(w_knots, u_knots, coefficients[mode_ind,0], kx=3, ky=3)
@@ -139,14 +135,14 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
         self.len_indiv_c = self.coeff.shape[2]
 
     @property
-    def interp2D(self) -> callable:
+    def interp2D(self):
         """GPU or CPU interp2D"""
         return self.backend.interp2D
 
     @classmethod
     def module_references(cls) -> list[REFERENCE]:
         """Return citations related to this module"""
-        return [REFERENCE.ROMANNET] + super().module_references()
+        return super().module_references() + [REFERENCE.ROMANNET]
 
     @classmethod
     def supported_backends(cls):
@@ -154,10 +150,10 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
 
     def __call__(
         self,
-        w: Union[float, xp_ndarray],
-        u: Union[float, xp_ndarray],
+        w: float | xp_ndarray,
+        u: float | xp_ndarray,
         *args,
-        mode_indexes: Optional[xp_ndarray] = None,
+        mode_indexes: xp_ndarray | None = None,
         **kwargs,
     ) -> xp_ndarray:
         """
@@ -170,28 +166,30 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
         Returns:
             Complex Teukolsky mode amplitudes at the requested points.
         """
-        w = self.xp.asarray(w)
-        u = self.xp.asarray(u)
+        w_array = self.as_xp_array(w)
+        u_array = self.as_xp_array(u)
 
         tw, tu = self.knots
         c = self.coeff
         kw = ku = 3
 
         # standard Numpy broadcasting
-        if w.shape != u.shape:
-            w, u = np.broadcast_arrays(w, u)
+        if w_array.shape != u_array.shape:
+            w_array, u_array = np.broadcast_arrays(w_array, u_array)
 
-        shape = w.shape
-        w = w.ravel()
-        u = u.ravel()
+        shape = w_array.shape
+        w_array = w_array.ravel()
+        u_array = u_array.ravel()
 
-        if w.size == 0 or u.size == 0:
-            return np.zeros(shape, dtype=self.tck[2].dtype)
+        if w_array.size == 0 or u_array.size == 0:
+            if hasattr(self, "tck"):
+                return self.xp.zeros(shape, dtype=self.tck[2].dtype)
+            return self.xp.zeros(shape)
 
         nw = tw.shape[0]
         nu = tu.shape[0]
-        mw = w.shape[0]
-        mu = u.shape[0]
+        mw = w_array.shape[0]
+        mu = u_array.shape[0]
 
         assert mw == mu
 
@@ -204,7 +202,7 @@ class AmpInterp2D(AmplitudeBase, ParallelModuleBase):
         num_indiv_c = 2 * len(mode_indexes)  # Re and Im
         len_indiv_c = self.len_indiv_c
 
-        z = self.xp.zeros((num_indiv_c * mw))
+        z = self.as_xp_array(self.xp.zeros((num_indiv_c * mw)))
 
         self.interp2D(
             z, tw, nw, tu, nu, c_in, kw, ku, w, mw, u, mu, num_indiv_c, len_indiv_c
@@ -242,7 +240,7 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
 
     def __init__(
         self,
-        filename: Optional[str] = None,
+        filename: str | None = None,
         downsample_Z=1,
         force_backend: BackendLike = None,
         **kwargs,
@@ -333,12 +331,12 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
 
     def get_amplitudes(
         self,
-        a: float,
-        p: Union[float, np.ndarray],
-        e: Union[float, np.ndarray],
-        xI: Union[float, np.ndarray],
-        specific_modes: Optional[Union[list, np.ndarray]] = None,
-    ) -> Union[dict, np.ndarray]:
+        a_like: float | np.ndarray,
+        p_like: float | np.ndarray,
+        e_like: float | np.ndarray,
+        xI_like: float | np.ndarray,
+        specific_modes: list | np.ndarray | None = None,
+    ) -> dict | np.ndarray:
         """
         Generate Teukolsky amplitudes for a given set of parameters.
 
@@ -357,17 +355,10 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
         # retrograde: spin pos, xI neg - >  spin neg, xI pos
         # assert isinstance(a, float)
 
-        try:
-            p = p.get()
-            e = e.get()
-            xI = xI.get()
-        except AttributeError:
-            pass
-
-        a = self.xp.atleast_1d(a)
-        p = self.xp.atleast_1d(p)
-        e = self.xp.atleast_1d(e)
-        xI = self.xp.atleast_1d(xI)
+        a = self.xp.atleast_1d(self.as_xp_array(a_like))
+        p = self.xp.atleast_1d(self.as_xp_array(p_like))
+        e = self.xp.atleast_1d(self.as_xp_array(e_like))
+        xI = self.xp.atleast_1d(self.as_xp_array(xI_like))
 
         lengths = [len(arr) for arr in (a, p, e, xI)]
         non_one_lengths = {
@@ -559,7 +550,7 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
 
     def __init__(
         self,
-        filenames: Optional[List[str]] = None,
+        filenames: list[str] | None = None,
         force_backend: BackendLike = None,
         **kwargs,
     ):
@@ -636,9 +627,9 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
                 tck_last_entry[i, 1] = spl2D[mode][1].tck[2]
 
             self.tck = [
-                self.xp.asarray(example_spl.tck[0]),
-                self.xp.asarray(example_spl.tck[1]),
-                self.xp.asarray(tck_last_entry.copy()),
+                self.as_xp_array(example_spl.tck[0]),
+                self.as_xp_array(example_spl.tck[1]),
+                self.as_xp_array(tck_last_entry.copy()),
             ]
 
         self.num_teuk_modes = num_teuk_modes
@@ -646,13 +637,11 @@ class AmpInterpSchwarzEcc(AmplitudeBase, SchwarzschildEccentric):
         self.len_indiv_c = tck_last_entry.shape[-1]
 
     @property
-    def interp2D(self) -> callable:
+    def interp2D(self):
         """GPU or CPU interp2D"""
         return self.backend.interp2D
 
-    def get_amplitudes(
-        self, a, p, e, xI, specific_modes=None
-    ) -> Union[dict, np.ndarray]:
+    def get_amplitudes(self, a, p, e, xI, specific_modes=None) -> dict | np.ndarray:
         """
         Generate Teukolsky amplitudes for a given set of parameters.
 

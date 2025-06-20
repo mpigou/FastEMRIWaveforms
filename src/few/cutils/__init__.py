@@ -1,9 +1,9 @@
 import dataclasses
 import enum
-import types
 import typing as t
 
 from ..utils.exceptions import FewException
+from ..utils.typing import xp_ndarray
 
 
 class BackendUnavailableException(FewException):
@@ -12,6 +12,20 @@ class BackendUnavailableException(FewException):
 
 class BackendNotInstalled(BackendUnavailableException):
     """Exception raised when the backend has not been installed"""
+
+
+class XpProtocol(t.Protocol):
+    """Protocol of np/cp modules"""
+
+    abs: t.Callable[[xp_ndarray], xp_ndarray]
+    all: t.Callable[[xp_ndarray], bool]
+    any: t.Callable[[xp_ndarray], bool]
+    arange: t.Callable[[int], xp_ndarray]
+    atleast_1d: t.Callable[[xp_ndarray], xp_ndarray]
+    ones: t.Callable[(...), xp_ndarray]
+    ones_like: t.Callable[[xp_ndarray], xp_ndarray]
+    zeros: t.Callable[(...), xp_ndarray]
+    zeros_like: t.Callable[[xp_ndarray], xp_ndarray]
 
 
 class MissingDependencies(BackendUnavailableException):
@@ -57,16 +71,38 @@ class MissingHardware(BackendUnavailableException):
     """Exception raised when backend needs unavailable hardware."""
 
 
+PyWaveformCallable: t.TypeAlias = t.Callable[(...), None]
+Interp2dCallable: t.TypeAlias = t.Callable[
+    [
+        xp_ndarray,
+        xp_ndarray,
+        int,
+        xp_ndarray,
+        int,
+        xp_ndarray,
+        int,
+        int,
+        xp_ndarray,
+        int,
+        xp_ndarray,
+        int,
+        int,
+        int,
+    ],
+    None,
+]
+
+
 @dataclasses.dataclass
 class BackendMethods:
-    pyWaveform: t.Callable[(...), None]
-    interp2D: t.Callable[(...), None]
+    pyWaveform: PyWaveformCallable
+    interp2D: Interp2dCallable
     interpolate_arrays_wrap: t.Callable[(...), None]
     get_waveform_wrap: t.Callable[(...), None]
     get_waveform_generic_fd_wrap: t.Callable[(...), None]
     neural_layer_wrap: t.Callable[(...), None]
     transform_output_wrap: t.Callable[(...), None]
-    xp: types.ModuleType
+    xp: XpProtocol
 
 
 class Backend:
@@ -75,16 +111,7 @@ class Backend:
     name: str
     """Backend unique name"""
 
-    pyWaveform: t.Callable[(...), None]
-    interp2D: t.Callable[(...), None]
-    interpolate_arrays_wrap: t.Callable[(...), None]
-    get_waveform_wrap: t.Callable[(...), None]
-    get_waveform_generic_fd_wrap: t.Callable[(...), None]
-    neural_layer_wrap: t.Callable[(...), None]
-    transform_output_wrap: t.Callable[(...), None]
-
-    xp: types.ModuleType
-    """Reference to package handling the backend ndarrays (numpy or cupy for now)"""
+    _methods: BackendMethods
 
     class Feature(enum.Flag):
         NUMPY = enum.auto()
@@ -102,22 +129,48 @@ class Backend:
         NONE = 0
         """Special flag representing no activated feature"""
 
-    features: Feature
+    _features: Feature
     """List of Backend features used by a backend"""
 
     def __init__(self, name: str, methods: BackendMethods, features: Feature):
         self.name = name
 
-        self.pyWaveform = methods.pyWaveform
-        self.interp2D = methods.interp2D
-        self.interpolate_arrays_wrap = methods.interpolate_arrays_wrap
-        self.get_waveform_wrap = methods.get_waveform_wrap
-        self.get_waveform_generic_fd_wrap = methods.get_waveform_generic_fd_wrap
-        self.neural_layer_wrap = methods.neural_layer_wrap
-        self.transform_output_wrap = methods.transform_output_wrap
-        self.xp = methods.xp
+        self._methods = methods
 
-        self.features = features
+        self._features = features
+
+    @property
+    def pyWaveform(self) -> PyWaveformCallable:
+        return self._methods.pyWaveform
+
+    @property
+    def interp2D(self) -> Interp2dCallable:
+        return self._methods.interp2D
+
+    @property
+    def interpolate_arrays_wrap(self):
+        return self._methods.interpolate_arrays_wrap
+
+    @property
+    def get_waveform_wrap(self):
+        return self._methods.get_waveform_wrap
+
+    @property
+    def get_waveform_generic_fd_wrap(self):
+        return self._methods.get_waveform_generic_fd_wrap
+
+    @property
+    def neural_layer_wrap(self):
+        return self._methods.neural_layer_wrap
+
+    @property
+    def transform_output_wrap(self):
+        return self._methods.transform_output_wrap
+
+    @property
+    def xp(self):
+        """Reference to package handling the backend ndarrays (numpy or cupy for now)"""
+        return self._methods.xp
 
     @staticmethod
     def _check_module_installed(backend_name: str, module_name: str):
@@ -133,7 +186,7 @@ class Backend:
 
     def supports(self, feature: Feature) -> bool:
         """Check whether a backend supports a given feature"""
-        return feature in self.features
+        return feature in self._features
 
     @property
     def uses_gpu(self) -> bool:
@@ -178,6 +231,8 @@ class CpuBackend(Backend):
                 "'cpu' backend requires numpy", pip_deps=["numpy"], conda_deps=["numpy"]
             ) from e
 
+        np_as_xp: XpProtocol = numpy  # type: ignore[assignment]
+
         return BackendMethods(
             pyWaveform=few_backend_cpu.pyAAK.pyWaveform,
             interp2D=few_backend_cpu.pyAmpInterp2D.interp2D,
@@ -186,7 +241,7 @@ class CpuBackend(Backend):
             get_waveform_generic_fd_wrap=few_backend_cpu.pyinterp.get_waveform_generic_fd_wrap,
             neural_layer_wrap=few_backend_cpu.pymatmul.neural_layer_wrap,
             transform_output_wrap=few_backend_cpu.pymatmul.transform_output_wrap,
-            xp=numpy,
+            xp=np_as_xp,
         )
 
     def __init__(self):
@@ -277,10 +332,10 @@ class _CudaBackend(Backend):
         module_name: str
         """Name of the nvidia module containing the library"""
 
-        pip_pkg: str | None = None
+        pip_pkg: str
         """Name of a pip-installable package providing that library"""
 
-        conda_pkg: str | None = None
+        conda_pkg: str
         """Name of a conda-installable package providing that library"""
 
     @staticmethod
@@ -293,9 +348,10 @@ class _CudaBackend(Backend):
         from ..utils.exceptions import ExceptionGroup
 
         try:
-            nvidia_root = pathlib.Path(
-                importlib.import_module("nvidia").__file__
-            ).parent
+            nvidia_file_path = importlib.import_module("nvidia").__file__
+            assert nvidia_file_path is not None
+            nvidia_root = pathlib.Path(nvidia_file_path).parent
+            del nvidia_file_path
         except ModuleNotFoundError:
             nvidia_root = None
 
@@ -310,9 +366,8 @@ class _CudaBackend(Backend):
 
             try:
                 if nvidia_root is not None:
-                    ctypes.cdll.LoadLibrary(
-                        nvidia_root / lib.module_name / "lib" / lib.soname
-                    )
+                    so_path = nvidia_root / lib.module_name / "lib" / lib.soname
+                    ctypes.cdll.LoadLibrary(str(so_path))
                     continue
             except OSError as e:
                 exceptions.append(e)
@@ -324,16 +379,8 @@ class _CudaBackend(Backend):
                 "Could not load following NVidia libraries: {}".format(
                     ", ".join([libs[idx].soname for idx in failed_idx])
                 ),
-                pip_deps=[
-                    libs[idx].pip_pkg
-                    for idx in failed_idx
-                    if libs[idx].pip_pkg is not None
-                ],
-                conda_deps=[
-                    libs[idx].conda_pkg
-                    for idx in failed_idx
-                    if libs[idx].conda_pkg is not None
-                ],
+                pip_deps=[libs[idx].pip_pkg for idx in failed_idx],
+                conda_deps=[libs[idx].conda_pkg for idx in failed_idx],
             ) from ExceptionGroup(
                 "Following exceptions were raised while trying to load NVidia libraries",
                 exceptions,
@@ -430,7 +477,9 @@ class Cuda11xBackend(_CudaBackend):
             import cupy
         except (ModuleNotFoundError, ImportError) as e:
             raise MissingDependencies(
-                "'cuda11x' backend requires cupy", pip_deps=["cupy-cuda11x"]
+                "'cuda11x' backend requires cupy",
+                pip_deps=["cupy-cuda11x"],
+                conda_deps=[],
             ) from e
 
         return BackendMethods(
@@ -454,37 +503,37 @@ class Cuda11xBackend(_CudaBackend):
                     soname="libcudart.so.11",
                     module_name="cuda_runtime",
                     pip_pkg="nvidia-cuda-runtime-cu11",
-                    conda_pkg=None,
+                    conda_pkg="nvidia::cuda-cudart",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libcublas.so.11",
                     module_name="cublas",
                     pip_pkg="nvidia-cublas-cu11",
-                    conda_pkg=None,
+                    conda_pkg="nvidia::libcublas",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libnvJitLink.so.11",
                     module_name="nvjitlink",
                     pip_pkg="nvidia-nvjitlink-cu11",
-                    conda_pkg=None,
+                    conda_pkg="nvidia::cuda-libraries",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libcusparse.so.11",
                     module_name="cusparse",
                     pip_pkg="nvidia-cusparse-cu11",
-                    conda_pkg=None,
+                    conda_pkg="nvidia:libcusparse",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libnvrtc.so.11",
                     module_name="cuda_nvrtc",
                     pip_pkg="nvidia-cuda-nvrtc-cu11",
-                    conda_pkg=None,
+                    conda_pkg="nvidia::cuda-nvrtc",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libcufftw.so.11",
                     module_name="cufft",
                     pip_pkg="nvidia-cufft-cu11",
-                    conda_pkg=None,
+                    conda_pkg="nvidia:libcufft",
                 ),
             ]
             _CudaBackend._try_import_nvidia_solib(cuda11x_solibs)
@@ -554,37 +603,37 @@ class Cuda12xBackend(_CudaBackend):
                     soname="libcudart.so.12",
                     module_name="cuda_runtime",
                     pip_pkg="nvidia-cuda-runtime-cu12",
-                    conda_pkg=None,
+                    conda_pkg="conda-forge::cuda-cudart",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libcublas.so.12",
                     module_name="cublas",
                     pip_pkg="nvidia-cublas-cu12",
-                    conda_pkg=None,
+                    conda_pkg="conda-forge::libcublas",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libnvJitLink.so.12",
                     module_name="nvjitlink",
                     pip_pkg="nvidia-nvjitlink-cu12",
-                    conda_pkg=None,
+                    conda_pkg="conda-forge::libnvjitlink",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libcusparse.so.12",
                     module_name="cusparse",
                     pip_pkg="nvidia-cusparse-cu12",
-                    conda_pkg=None,
+                    conda_pkg="conda-forge::libcusparse",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libnvrtc.so.12",
                     module_name="cuda_nvrtc",
                     pip_pkg="nvidia-cuda-nvrtc-cu12",
-                    conda_pkg=None,
+                    conda_pkg="conda-forge::cuda-nvrtc",
                 ),
                 _CudaBackend.NvidiaSoLib(
                     soname="libcufftw.so.11",
                     module_name="cufft",
                     pip_pkg="nvidia-cufft-cu12",
-                    conda_pkg=None,
+                    conda_pkg="libcufft",
                 ),
             ]
             _CudaBackend._try_import_nvidia_solib(cuda12x_solibs)

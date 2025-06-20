@@ -221,6 +221,10 @@ def Y_to_xI(
 ) -> np.ndarray: ...
 
 
+@t.overload
+def Y_to_xI(a: float, p: float, e: float, Y: float) -> float: ...
+
+
 def Y_to_xI(a, p, e, Y):
     r"""Convert from :math:`Y=\cos{\iota}` to :math:`x_I=\cos{I}`.
 

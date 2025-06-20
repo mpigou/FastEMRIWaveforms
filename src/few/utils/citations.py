@@ -10,7 +10,7 @@ attribute.
 
 import abc
 import enum
-from typing import List, Optional, Union
+import typing as t
 
 from pydantic import BaseModel
 
@@ -21,6 +21,7 @@ class HyphenUnderscoreAliasModel(BaseModel):
     """Pydantic model were hyphen replace underscore in field names."""
 
     class Config:
+        @staticmethod
         def hyphen_replace(field: str) -> str:
             return field.replace("_", "-")
 
@@ -34,9 +35,9 @@ class Author(HyphenUnderscoreAliasModel):
 
     family_names: str
     given_names: str
-    orcid: Optional[str] = None
-    affiliation: Optional[str] = None
-    email: Optional[str] = None
+    orcid: str | None = None
+    affiliation: str | None = None
+    email: str | None = None
 
 
 class Publisher(HyphenUnderscoreAliasModel):
@@ -50,7 +51,7 @@ class Identifier(HyphenUnderscoreAliasModel):
 
     type: str
     value: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class ReferenceABC(HyphenUnderscoreAliasModel, abc.ABC):
@@ -65,28 +66,28 @@ class ArxivIdentifier(BaseModel):
     """Class representing an arXiv identifier"""
 
     reference: str
-    primary_class: Optional[str] = None
+    primary_class: str | None = None
 
 
 class ArticleReference(ReferenceABC):
     """Description of an article."""
 
     abbreviation: str
-    authors: List[Author]
+    authors: list[Author]
     title: str
     journal: str
     year: int
-    month: Optional[int] = None
-    issue: Optional[int] = None
-    publisher: Optional[Publisher] = None
-    pages: Optional[int] = None
-    start: Optional[int] = None
-    issn: Optional[str] = None
-    doi: Optional[str] = None
-    identifiers: Optional[List[Identifier]] = None
+    month: int | None = None
+    issue: int | None = None
+    publisher: Publisher | None = None
+    pages: int | None = None
+    start: int | None = None
+    issn: str | None = None
+    doi: str | None = None
+    identifiers: list[Identifier] | None = None
 
     @property
-    def arxiv_preprint(self) -> Optional[ArxivIdentifier]:
+    def arxiv_preprint(self) -> ArxivIdentifier | None:
         """
         Detect an arXiv identifier if any.
 
@@ -97,6 +98,9 @@ class ArticleReference(ReferenceABC):
           - The arXiv reference (e.g. "arxiv:1912.07609")
           - The primary class followed by '/' and the reference (e.g. "arxiv:gr-qc/1912.07609")
         """
+        if self.identifiers is None:
+            return None
+
         for identifier in self.identifiers:
             if identifier.type != "other":
                 continue
@@ -107,6 +111,7 @@ class ArticleReference(ReferenceABC):
                 data.split("/", 1) if "/" in data else (None, data)
             )
             return ArxivIdentifier(primary_class=primary_class, reference=reference)
+
         return None
 
     def to_bibtex(self) -> str:
@@ -170,17 +175,19 @@ class SoftwareReference(ReferenceABC):
     authors: list[Author]
     title: str
 
-    license: Optional[str] = None
-    url: Optional[str] = None
-    repository: Optional[str] = None
-    identifiers: Optional[List[Identifier]] = None
-    year: Optional[int] = None
-    month: Optional[int] = None
-    version: Optional[str] = None
+    license: str | None = None
+    url: str | None = None
+    repository: str | None = None
+    identifiers: list[Identifier] | None = None
+    year: int | None = None
+    month: int | None = None
+    version: str | None = None
 
     @property
-    def doi(self) -> Optional[str]:
+    def doi(self) -> str | None:
         """Return the first DOI in identifiers if any"""
+        if self.identifiers is None:
+            return None
         for identifier in self.identifiers:
             if identifier.type == "doi":
                 return identifier.value
@@ -224,7 +231,7 @@ class SoftwareReference(ReferenceABC):
         return ",\n".join(lines) + "\n}"
 
 
-Reference = Union[ArticleReference, SoftwareReference]
+Reference: t.TypeAlias = ArticleReference | SoftwareReference
 
 
 class REFERENCE(enum.Enum):
@@ -251,7 +258,7 @@ class CitationRegistry:
     def __init__(self, **kwargs):
         self.registry = kwargs
 
-    def get(self, key: Union[str, REFERENCE]) -> Reference:
+    def get(self, key: str | REFERENCE) -> Reference:
         """Return a Reference object from its key."""
         return self.registry[key if isinstance(key, str) else key.value]
 
@@ -313,7 +320,7 @@ COMMON_REFERENCES = [REFERENCE.FEW, REFERENCE.LARGER_FEW, REFERENCE.FEW_SOFTWARE
 class Citable:
     """Base class for classes associated with specific citations."""
 
-    registry: Optional[CitationRegistry] = None
+    registry: CitationRegistry | None = None
 
     @classmethod
     def citation(cls) -> str:
@@ -332,6 +339,6 @@ class Citable:
         return "\n\n".join(bibtex_entries)
 
     @classmethod
-    def module_references(cls) -> List[Union[REFERENCE, str]]:
+    def module_references(cls) -> list[REFERENCE]:
         """Method implemented by each class to define its list of references"""
         return COMMON_REFERENCES
