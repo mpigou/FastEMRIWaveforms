@@ -151,68 +151,68 @@ class ModuleTest(FewTest):
 
     def test_backward_trajectory_termination_kerr(self):
         self.logger.info("Testing kerr backward termination at grid boundaries")
-        
+
         # Initialize trajectory class
         traj = EMRIInspiral(func=KerrEccEqFlux)
-        
+
         # Test parameters
         m1 = 1e6
-        m2 = 10.
-        
+        m2 = 10.0
+
         # Test 1: Termination at e boundary
         self.logger.info("Test 1: Termination at eccentricity boundary")
         a = 0.5
         x0 = 1.0
-        
+
         # Start near the maximum eccentricity
         p0 = 12.0
         flux_obj = KerrEccEqFlux()
         flux_obj.a = a
         e_max = flux_obj._max_e(p0, x0, a)
         e0 = e_max - 0.05
-        
+
         backwards_kwargs = insp_kw.copy()
-        backwards_kwargs.update({
-            "integrate_backwards": True,
-            "T": 10.0,
-            "dt": 10.
-        })
-        
+        backwards_kwargs.update({"integrate_backwards": True, "T": 10.0, "dt": 10.0})
+
         result = traj(m1, m2, a, p0, e0, x0, **backwards_kwargs)
         final_e = result[2][-1]
-        
+
         # Check that we're near the maximum eccentricity
         flux_obj.a = a
         e_max_final = flux_obj._max_e(result[1][-1], x0, a)
-        
+
         self.assertAlmostEqual(
-            final_e, e_max_final, 
-            msg=f"Failed to reach e boundary. Final e={final_e}, max e={e_max_final}"
+            final_e,
+            e_max_final,
+            msg=f"Failed to reach e boundary. Final e={final_e}, max e={e_max_final}",
         )
-        
+
         # Test 2: Termination at p boundary
         self.logger.info("Test 2: Termination at p boundary")
         a = 0.0
         e0 = 0.0
-        
+
         # Start very close to PMAX
         # PMAX = PMAX_REGIONB = 200
         PMAX = 200
         p0 = 199.5
-        
+
         backwards_kwargs = insp_kw.copy()
-        backwards_kwargs.update({
-            "integrate_backwards": True,
-            "T": 10_000.,  # Much longer integration time
-            "dt": 10_000.  # Larger time step for slow evolution
-        })
-        
+        backwards_kwargs.update(
+            {
+                "integrate_backwards": True,
+                "T": 10_000.0,  # Much longer integration time
+                "dt": 10_000.0,  # Larger time step for slow evolution
+            }
+        )
+
         result = traj(m1, m2, a, p0, e0, x0, **backwards_kwargs)
         final_p = result[1][-1]
-                
+
         self.assertAlmostEqual(
-            final_p, PMAX,
-            msg=f"Failed to reach p boundary. Final p={final_p}, PMAX={PMAX}"
+            final_p,
+            PMAX,
+            msg=f"Failed to reach p boundary. Final p={final_p}, PMAX={PMAX}",
         )
 
     def test_trajectory_ELQ_vs_pex(self):

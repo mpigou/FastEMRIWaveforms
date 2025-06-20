@@ -152,6 +152,8 @@ extend-include = [
   "!src/few/utils/globals.py",
 ]
 
+exclude = [ "examples/Tutorial_FrequencyDomain_Waveforms.ipynb" ]
+
 lint.extend-select = [
   "I",
   "T201", # Fail when "print" is used, to be replaced with logger calls
