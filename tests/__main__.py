@@ -32,7 +32,7 @@ def process_argv(argv: t.Optional[list[str]] = None) -> tuple[TestFewOpts, list[
     return opts, parsed[1]
 
 
-if __name__ == "__main__":
+def main():
     import logging
 
     from few import get_config, get_config_setter, get_file_manager, get_logger
@@ -44,13 +44,14 @@ if __name__ == "__main__":
     if options.disabled_tags is not None:
         config_setter.disable_file_tags(*options.disabled_tags)
 
-    if get_logger().getEffectiveLevel() > logging.INFO:
+    logger = get_logger()
+    if logger.getEffectiveLevel() > logging.INFO:
         get_config_setter(reset=True).set_log_level("INFO")
 
     if get_config().file_allow_download:
-        get_logger().info("Ensuring that all files required by tests are present.")
+        logger.info("Ensuring that all files required by tests are present.")
         get_file_manager().prefetch_files_by_tag("testfile", skip_disabled=True)
-        get_logger().info("Done... Now run the tests!")
+        logger.info("Done... Now run the tests!")
 
     config_setter = get_config_setter(reset=True)
 
@@ -58,3 +59,7 @@ if __name__ == "__main__":
         config_setter.disable_file_tags(*options.disabled_tags)
 
     TestFew(argv=argv)
+
+
+if __name__ == "__main__":
+    main()
