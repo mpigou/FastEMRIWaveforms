@@ -1,8 +1,9 @@
 import dataclasses
 import enum
 import types
-import typing
+import typing as t
 
+from ..dataset.on_demand import OnDemandHolder
 from ..utils.exceptions import FewException
 
 
@@ -17,15 +18,13 @@ class BackendNotInstalled(BackendUnavailableException):
 class MissingDependencies(BackendUnavailableException):
     """Exception raised when the backend has missing dependencies"""
 
-    pip_deps: typing.List[str]
+    pip_deps: list[str]
     """List of missing dependencies to install in pip-managed environments"""
 
-    conda_deps: typing.List[str]
+    conda_deps: list[str]
     """List of missing dependencies to install in conda-managed environments."""
 
-    def __init__(
-        self, *args, pip_deps: typing.List[str], conda_deps: typing.List[str], **kwargs
-    ):
+    def __init__(self, *args, pip_deps: list[str], conda_deps: list[str], **kwargs):
         self.pip_deps = pip_deps
         self.conda_deps = conda_deps
         super().__init__(*args, **kwargs)
@@ -61,14 +60,17 @@ class MissingHardware(BackendUnavailableException):
 
 @dataclasses.dataclass
 class BackendMethods:
-    pyWaveform: typing.Callable[(...), None]
-    interp2D: typing.Callable[(...), None]
-    interpolate_arrays_wrap: typing.Callable[(...), None]
-    get_waveform_wrap: typing.Callable[(...), None]
-    get_waveform_generic_fd_wrap: typing.Callable[(...), None]
-    neural_layer_wrap: typing.Callable[(...), None]
-    transform_output_wrap: typing.Callable[(...), None]
+    pyWaveform: t.Callable[(...), None]
+    interp2D: t.Callable[(...), None]
+    interpolate_arrays_wrap: t.Callable[(...), None]
+    get_waveform_wrap: t.Callable[(...), None]
+    get_waveform_generic_fd_wrap: t.Callable[(...), None]
+    neural_layer_wrap: t.Callable[(...), None]
+    transform_output_wrap: t.Callable[(...), None]
     xp: types.ModuleType
+
+
+T = t.TypeVar("T")
 
 
 class Backend:
@@ -77,16 +79,19 @@ class Backend:
     name: str
     """Backend unique name"""
 
-    pyWaveform: typing.Callable[(...), None]
-    interp2D: typing.Callable[(...), None]
-    interpolate_arrays_wrap: typing.Callable[(...), None]
-    get_waveform_wrap: typing.Callable[(...), None]
-    get_waveform_generic_fd_wrap: typing.Callable[(...), None]
-    neural_layer_wrap: typing.Callable[(...), None]
-    transform_output_wrap: typing.Callable[(...), None]
+    pyWaveform: t.Callable[(...), None]
+    interp2D: t.Callable[(...), None]
+    interpolate_arrays_wrap: t.Callable[(...), None]
+    get_waveform_wrap: t.Callable[(...), None]
+    get_waveform_generic_fd_wrap: t.Callable[(...), None]
+    neural_layer_wrap: t.Callable[(...), None]
+    transform_output_wrap: t.Callable[(...), None]
 
     xp: types.ModuleType
     """Reference to package handling the backend ndarrays (numpy or cupy for now)"""
+
+    data_holder: OnDemandHolder
+    """Object holding read-only views of data files."""
 
     class Feature(enum.Flag):
         NUMPY = enum.auto()
@@ -120,6 +125,8 @@ class Backend:
         self.xp = methods.xp
 
         self.features = features
+
+        self.data_holder = OnDemandHolder(backend=self)
 
     @staticmethod
     def _check_module_installed(backend_name: str, module_name: str):
@@ -207,7 +214,7 @@ class _CudaBackend(Backend):
     """Implementation of generic CUDA backend"""
 
     @staticmethod
-    def _get_cuda_version() -> typing.Tuple[int, int]:
+    def _get_cuda_version() -> t.Tuple[int, int]:
         """Get the CUDA version or raise an exception"""
         try:
             import pynvml
@@ -279,14 +286,14 @@ class _CudaBackend(Backend):
         module_name: str
         """Name of the nvidia module containing the library"""
 
-        pip_pkg: typing.Optional[str] = None
+        pip_pkg: t.Optional[str] = None
         """Name of a pip-installable package providing that library"""
 
-        conda_pkg: typing.Optional[str] = None
+        conda_pkg: t.Optional[str] = None
         """Name of a conda-installable package providing that library"""
 
     @staticmethod
-    def _try_import_nvidia_solib(libs: typing.Sequence[NvidiaSoLib]) -> None:
+    def _try_import_nvidia_solib(libs: t.Sequence[NvidiaSoLib]) -> None:
         """Try to load a set of Nvidia dynamic libraries"""
         import ctypes
         import importlib
@@ -301,7 +308,7 @@ class _CudaBackend(Backend):
         except ModuleNotFoundError:
             nvidia_root = None
 
-        failed_idx: typing.List[int] = []
+        failed_idx: list[int] = []
         exceptions = []
         for idx, lib in enumerate(libs):
             try:
@@ -348,8 +355,8 @@ class _CudaBackend(Backend):
         backend_module_name: str,
         cuda_min: tuple[int, int],  # Inclusive minimum
         cuda_max: tuple[int, int],  # Exclusive maximum
-        module_loader: typing.Callable[[], None],  # Method loading
-        dynlib_loader: typing.Optional[typing.Callable[[], None]] = None,
+        module_loader: t.Callable[[], None],  # Method loading
+        dynlib_loader: t.Optional[t.Callable[[], None]] = None,
     ) -> BackendMethods:
         """Perform all tests to ensure that a CUDA backend can be used"""
 
@@ -650,14 +657,14 @@ class BackendAccessException(FewException):
 class BackendsManager:
     """Handles loading and accessing backend instances."""
 
-    _registry: typing.Dict[str, BackendStatus]
+    _registry: t.Dict[str, BackendStatus]
 
     @property
-    def backend_list(self) -> typing.List[str]:
+    def backend_list(self) -> list[str]:
         """Return the list of backend names"""
         return [name for name in self._registry.keys()]
 
-    def __init__(self, enabled_backends: typing.Optional[typing.Sequence[str]] = None):
+    def __init__(self, enabled_backends: t.Optional[t.Sequence[str]] = None):
         """
         Initialize the backend registry.
 
@@ -735,11 +742,11 @@ class BackendsManager:
             self._try_loading_backend(backend_name=backend_name), BackendStatusLoaded
         )
 
-    def get_first_backend(self, backends: typing.Sequence[str]) -> Backend:
+    def get_first_backend(self, backends: t.Sequence[str]) -> Backend:
         """Get first available backend from a list or raise BackendAccessException if none available"""
         assert len(backends) > 0
 
-        reasons: typing.List[BackendUnavailableException] = []
+        reasons: list[BackendUnavailableException] = []
         for backend_name in backends:
             if isinstance(
                 status := self._try_loading_backend(backend_name=backend_name),

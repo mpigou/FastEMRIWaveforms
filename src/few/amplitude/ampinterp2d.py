@@ -10,6 +10,8 @@ import h5py
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
+from ..dataset.format import amp_lmn
+
 # Cython/C++ imports
 # Python imports
 from ..utils.baseclasses import (
@@ -250,69 +252,45 @@ class AmpInterpKerrEccEq(AmplitudeBase, KerrEccentricEquatorial):
         AmplitudeBase.__init__(self)
         KerrEccentricEquatorial.__init__(self, force_backend=force_backend, **kwargs)
 
-        self.filename = (
-            "ZNAmps_l10_m10_n55_DS2Outer.h5" if filename is None else filename
-        )
+        self.filename = "ZNAmps_l10_m10_n55_DS2Outer" if filename is None else filename
 
-        from few import get_file_manager
+        if self.backend.data_holder.has(self.filename):
+            filedata = self.backend.data_holder.view(self.filename, amp_lmn.AmpLMN)
+        else:
+            filedata = amp_lmn.build(self.filename, self.backend)
+            self.backend.data_holder.hold(self.filename, filedata)
 
-        file_path = get_file_manager().get_file(self.filename)
+        self.spin_information_holder_A = [
+            self.build_with_same_backend(
+                AmpInterp2D,
+                args=[
+                    filedata.region_a.w_knots,
+                    filedata.region_a.u_knots,
+                    filedata.region_a.coeffs[i],
+                    self.l_arr,
+                    self.m_arr,
+                    self.n_arr,
+                ],
+            )
+            for i in range(filedata.region_a.z_knots.size)
+        ]
 
-        with h5py.File(file_path, "r") as f:
-            regionA = f["regionA"]
-            coeffsA = regionA["CoeffsRegionA"][()]
-            w_knots = regionA["w_knots"][()]
-            u_knots = regionA["u_knots"][()]
-            z_knots = regionA["z_knots"][()]
+        self.spin_information_holder_B = [
+            self.build_with_same_backend(
+                AmpInterp2D,
+                args=[
+                    filedata.region_b.w_knots,
+                    filedata.region_b.u_knots,
+                    filedata.region_b.coeffs[i],
+                    self.l_arr,
+                    self.m_arr,
+                    self.n_arr,
+                ],
+            )
+            for i in range(filedata.region_b.z_knots.size)
+        ]
 
-            z_knots = z_knots[::downsample_Z]
-            coeffsA = coeffsA[::downsample_Z]
-
-            self.spin_information_holder_A = [
-                self.build_with_same_backend(
-                    AmpInterp2D,
-                    args=[
-                        w_knots,
-                        u_knots,
-                        coeffsA[i],
-                        self.l_arr,
-                        self.m_arr,
-                        self.n_arr,
-                    ],
-                )
-                for i in range(z_knots.size)
-            ]
-
-            try:
-                regionB = f["regionB"]
-                coeffsB = regionB["CoeffsRegionB"][()]
-
-                w_knots = regionB["w_knots"][()]
-                u_knots = regionB["u_knots"][()]
-                z_knots = regionB["z_knots"][()]
-
-                z_knots = z_knots[::downsample_Z]
-
-                coeffsB = coeffsB[::downsample_Z]
-
-                self.spin_information_holder_B = [
-                    self.build_with_same_backend(
-                        AmpInterp2D,
-                        args=[
-                            w_knots,
-                            u_knots,
-                            coeffsB[i],
-                            self.l_arr,
-                            self.m_arr,
-                            self.n_arr,
-                        ],
-                    )
-                    for i in range(z_knots.size)
-                ]
-            except KeyError:
-                pass
-
-        self.z_values = z_knots
+        self.z_values = filedata.region_b.z_knots
 
     def evaluate_interpolant_at_index(self, index, region_A_mask, w, u, mode_indexes):
         z_out = self.xp.zeros(
