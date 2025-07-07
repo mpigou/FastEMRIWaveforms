@@ -9,7 +9,7 @@ import typing as t
 
 from ..utils.exceptions import FewException
 from . import format
-from .holder import Holder
+from .holder import Holder, T
 
 if t.TYPE_CHECKING:
     from ..cutils import Backend
@@ -43,6 +43,12 @@ class OnDemandHolder(Holder):
     def __init__(self, backend: Backend):
         self._backend = backend
         super().__init__()
+
+    @t.overload
+    def view(self, reference: str, expected_type: None) -> t.Any: ...
+
+    @t.overload
+    def view(self, reference: str, expected_type: type[T]) -> T: ...
 
     def view(self, reference, expected_type=None):
         if reference not in FILE_DEFINITIONS:
