@@ -358,10 +358,10 @@ function(apply_gpu_backend_common_options libname)
   target_include_directories(${target_name} PRIVATE ${Python_NumPy_INCLUDE_DIR})
   target_compile_definitions(${target_name}
                              PRIVATE NPY_NO_DEPRECATED_API=NPY_1_9_API_VERSION)
-  target_link_libraries(${target_name} PUBLIC CUDA::cudart CUDA::cublas
-                                              CUDA::cusparse)
+  target_link_libraries(${target_name} PUBLIC CUDA::cublas CUDA::cusparse)
   set_property(TARGET ${target_name} PROPERTY CUDA_ARCHITECTURES
                                               ${FEW_CUDA_ARCH})
+  set_property(TARGET ${target_name} PROPERTY CUDA_RUNTIME_LIBRARY SHARED)
 endfunction()
 
 # * * * * * * * * * * * * * * * * * * * *
