@@ -22,7 +22,8 @@ jobs:
       - name: Install bare package
         if: steps.file_cache.outputs.cache-hit != 'true'
         run: |
-          python -m pip install . --config-settings=cmake.define.FEW_WITH_GPU=BARE
+          python -m pip install uv
+          python -m uv pip install -r pylock.toml --config-settings=cmake.define.FEW_WITH_GPU=BARE
       - name: Download files into cache
         if: steps.file_cache.outputs.cache-hit != 'true'
         run: |
@@ -101,13 +102,14 @@ jobs:
           which python
           export PKG_CONFIG_PATH=${LAPACK_PKG_CONFIG_PATH}:${PKG_CONFIG_PATH}
           python --version
-          python -m pip install '.[testing, doc]' \
+          python -m pip install uv
+          python -m uv pip install -r pylock.toml --extra testing --extra doc \
             --config-settings=cmake.define.FEW_WITH_GPU=OFF \
             --config-settings=cmake.define.FEW_LAPACKE_FETCH=OFF \
             --config-settings=cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG
       - name: Install coverage
         run: |
-          python -m pip install coverage[toml]
+          python -m uv pip install coverage[toml]
       - name: Run module tests
         run: |
           echo "coverage run --source=few -m few.tests ${FEWTEST_OTHER_ARGS}"
