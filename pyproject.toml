@@ -177,3 +177,10 @@ report.omit = [
   "*/few/git_version.py",
   "*/few_backend_*/git_version.py",
 ]
+
+[tool.uv]
+
+environments = [
+  "sys_platform == 'darwin'",
+  "sys_platform == 'linux'",
+]

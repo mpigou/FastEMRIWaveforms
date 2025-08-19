@@ -34,11 +34,15 @@ repos:
     hooks:
       - id: pyproject-fmt
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
     rev: v0.12.9
     hooks:
-      # Run the linter.
       - id: ruff
         args: [--fix]
-      # Run the formatter.
       - id: ruff-format
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.8.11
+    hooks:
+      - id: uv-lock
+      - id: uv-export
+        args: [--frozen, -o, pylock.toml, --quiet]
+        files: ^(uv\.lock|pyproject\.toml|uv\.toml|pylock\.toml)$
