@@ -43,7 +43,7 @@ jobs:
       # =========================
       # = I - Retrieve sources  =
       # =========================
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -97,7 +97,7 @@ jobs:
             arch: x86_64
             kind: cuda_plugin
             cuda_major: 12
-            cuda_minor: 4
+            cuda_minor: 9
             reqpython: '>=3.10'
           - release: cpu
             os: ubuntu-24.04-arm
@@ -134,7 +134,7 @@ jobs:
       # =========================
       # = I - Retrieve sources  =
       # =========================
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       # ========================
       # = II - Update sources  =
       # ========================
@@ -184,7 +184,7 @@ jobs:
           version: 14
       - name: Build core wheels (macOS)
         if: runner.os == 'macOS' && matrix.kind == 'core'
-        uses: pypa/cibuildwheel@1b198eb0fd40daf384929579c8a9eafdcc4a41cc # v2.23.3
+        uses: pypa/cibuildwheel@6215098600c5d6721414d4e0f7f2b0b017008f0f # v3.1.3
         env:
           CIBW_SKIP: pp*
           CIBW_PROJECT_REQUIRES_PYTHON: ${{ matrix.reqpython }}
@@ -199,7 +199,7 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_ver }}
       - name: Build core wheels (Linux)
         if: runner.os == 'Linux' && matrix.kind == 'core'
-        uses: pypa/cibuildwheel@1b198eb0fd40daf384929579c8a9eafdcc4a41cc # v2.23.3
+        uses: pypa/cibuildwheel@6215098600c5d6721414d4e0f7f2b0b017008f0f # v3.1.3
         env:
           CIBW_PROJECT_REQUIRES_PYTHON: ${{ matrix.reqpython }}
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
@@ -222,7 +222,7 @@ jobs:
           CIBW_TEST_COMMAND: python -m few.tests --disable testfile
       - name: Build cuda plugin wheels (Linux)
         if: runner.os == 'Linux' && matrix.kind == 'cuda_plugin' && matrix.arch == 'x86_64'
-        uses: pypa/cibuildwheel@1b198eb0fd40daf384929579c8a9eafdcc4a41cc # v2.23.3
+        uses: pypa/cibuildwheel@6215098600c5d6721414d4e0f7f2b0b017008f0f # v3.1.3
         env:
           CIBW_PROJECT_REQUIRES_PYTHON: ${{ matrix.reqpython }}
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
@@ -269,7 +269,7 @@ jobs:
       id-token: write
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           path: wheelhouse/
           merge-multiple: true
@@ -277,7 +277,7 @@ jobs:
         run: |
           ls -al wheelhouse/*
       - name: Install twine from PyPI
-        uses: install-pinned/twine@c7ca21f7f66fc895b73cba784dc1d0e302e3b4a3 # 6.1.0
+        uses: install-pinned/twine@1c421c79633973d838a99d761ccdf20f8b2e1c46 # 6.1.0
       - name: Publish release distributions to registry
         env:
           TWINE_NON_INTERACTIVE: "yes"
