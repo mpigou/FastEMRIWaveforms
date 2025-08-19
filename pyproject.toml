@@ -82,6 +82,7 @@ optional-dependencies.sampling = [
 ]
 
 optional-dependencies.testing = [
+  "coverage[toml]",
   "matplotlib",
 ]
 

@@ -112,20 +112,16 @@ jobs:
             -C cmake.define.FEW_WITH_GPU=OFF \
             -C cmake.define.FEW_LAPACKE_FETCH=OFF \
             -C cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG
-      - name: Install coverage
-        run: |
-          python -m uv pip install coverage[toml]
       - name: Run module tests
         run: |
-          echo "coverage run --source=few -m few.tests ${FEWTEST_OTHER_ARGS}"
-          coverage run --source=few -m few.tests ${FEWTEST_OTHER_ARGS}
+          python -m uv run coverage run --source=few -m few.tests ${FEWTEST_OTHER_ARGS}
       - name: Run doc tests
         if: matrix.doctest == 'true'
         run: |
-          coverage run --source=few -m sphinx.cmd.build -M doctest docs/source docs/build --define nbsphinx_execute=never
+          python -m uv run coverage run --source=few -m sphinx.cmd.build -M doctest docs/source docs/build --define nbsphinx_execute=never
       - name: Show coverage results
         run: |
-          coverage report -m
+          python -m uv run coverage report -m
       - name: Upload coverage results as artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
