@@ -23,7 +23,7 @@ authors = [
   { name = "Niels Warburton" },
   { name = "Scott Hughes" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 
 classifiers = [
   "Environment :: GPU :: NVIDIA CUDA",
