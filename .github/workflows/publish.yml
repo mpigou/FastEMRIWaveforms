@@ -97,7 +97,7 @@ jobs:
             arch: x86_64
             kind: cuda_plugin
             cuda_major: 12
-            cuda_minor: 9
+            cuda_minor: 4
             reqpython: '>=3.10'
           - release: cpu
             os: ubuntu-24.04-arm
