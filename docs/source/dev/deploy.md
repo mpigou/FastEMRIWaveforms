@@ -48,7 +48,7 @@ sed -i 's|local_scheme = "node-and-date"|local_scheme = "no-local-version"|g' py
 
 ### Building the core package
 
-To build the core package wheel, the following command is executed after the common steps for python 3.9 to 3.13:
+To build the core package wheel, the following command is executed after the common steps for python 3.10 to 3.13:
 
 ```sh
 pip wheel ./ --no-deps -w ./dist \
@@ -85,7 +85,7 @@ sed -i 's|#@DEPS_FEWCORE@|"fastemriwaveforms"|g' pyproject.toml
 sed -i '/@SKIP_PLUGIN@/d' pyproject.toml
 ```
 
-The wheels are then built for python 3.9 to 3.13 with the command:
+The wheels are then built for python 3.10 to 3.13 with the command:
 
 ```sh
 pip wheel ./ --no-deps -w ./dist \
