@@ -46,3 +46,7 @@ repos:
       - id: uv-export
         args: [--frozen, -o, pylock.toml, --quiet]
         files: ^(uv\.lock|pyproject\.toml|uv\.toml|pylock\.toml)$
+  - repo: https://github.com/lalten/check-gha-pinning
+    rev: v1.3.0
+    hooks:
+      - id: check-gha-pinning
