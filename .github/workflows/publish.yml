@@ -84,38 +84,46 @@ jobs:
           - release: cpu
             os: ubuntu-latest
             arch: x86_64
+            march: x86-64-v2
             kind: core
             reqpython: '>=3.10,<3.14'
           - release: cpu
             os: ubuntu-24.04-arm
             arch: aarch64
+            march: armv9-a
             kind: core
             reqpython: '>=3.10,<3.14'
           # Linux CUDA builds
           - release: cuda11x
             os: ubuntu-latest
             arch: x86_64
+            march: x86-64-v2
             kind: cuda_plugin
             cuda_major: 11
             cuda_minor: 8
+            gcc_version: 11
             reqpython: '>=3.10,<3.14'
           - release: cuda12x
             os: ubuntu-latest
             arch: x86_64
+            march: x86-64-v2
             kind: cuda_plugin
             cuda_major: 12
             cuda_minor: 9
+            gcc_version: 14
             reqpython: '>=3.10,<3.14'
           # macOS CPU builds
           - release: cpu
             os: macos-13
             arch: x86_64
+            march: x86-64-v2
             kind: core
             macos_ver: 13.0
             reqpython: '>=3.10,<3.14'
           - release: cpu
             os: macos-14
             arch: arm64
+            march: armv9-a
             kind: core
             macos_ver: 14.0
             reqpython: '>=3.10,<3.14'
@@ -181,6 +189,7 @@ jobs:
             cmake.define.FEW_LAPACKE_FETCH=ON
             cmake.define.FEW_WITH_GPU=OFF
             cmake.define.CMAKE_Fortran_COMPILER=${{ steps.setup-fortran.outputs.fc }}
+            cmake.define.FEW_MARCH=${{ matrix.march }}
           CIBW_TEST_COMMAND: python -m few.tests --disable testfile
           CIBW_ENVIRONMENT: >
             SETUPTOOLS_SCM_PRETEND_VERSION="${{ needs.version.outputs.version }}"
@@ -197,6 +206,7 @@ jobs:
             cmake.define.FEW_LAPACKE_FETCH=OFF
             cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG
             cmake.define.FEW_WITH_GPU=OFF
+            cmake.define.FEW_MARCH=${{ matrix.march }}
           CIBW_BEFORE_ALL: >
             git clone https://github.com/Reference-LAPACK/lapack &&
             git -C lapack reset --hard 6ec7f2bc4ecf4c4a93496aa2fa519575bc0e39ca &&
@@ -219,10 +229,12 @@ jobs:
             cmake.define.FEW_LAPACKE_FETCH=OFF
             cmake.define.FEW_WITH_GPU=ONLY
             cmake.define.FEW_CUDA_ARCH=all
+            cmake.define.FEW_MARCH=${{ matrix.march }}
           CIBW_BEFORE_ALL: >
+            dnf install gcc-toolset-${{ matrix.gcc_version }} -y &&
             dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo &&
             dnf install -y cuda-compiler-${{ matrix.cuda_major }}-${{ matrix.cuda_minor }}.${{ matrix.arch }} cuda-libraries-${{ matrix.cuda_major }}-${{ matrix.cuda_minor }} cuda-libraries-devel-${{ matrix.cuda_major }}-${{ matrix.cuda_minor }}
-          CIBW_BEFORE_BUILD: source /opt/rh/gcc-toolset-14/enable
+          CIBW_BEFORE_BUILD: source /opt/rh/gcc-toolset-${{ matrix.gcc_version }}/enable
           CIBW_ENVIRONMENT: >
             PATH="/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}/bin:${PATH}"
             LD_LIBRARY_PATH="/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}/lib64:${LD_LIBRARY_PATH}"
