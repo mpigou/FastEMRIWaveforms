@@ -98,7 +98,6 @@ jobs:
           echo FEWTEST_OTHER_ARGS='--durations 0' >> "$GITHUB_ENV"
       - name: Run module tests
         run: |
-          uv run python --version
           uv run \
             --extra testing \
             -C cmake.define.CMAKE_PREFIX_PATH=${LAPACK_PKG_CONFIG_PATH} \
