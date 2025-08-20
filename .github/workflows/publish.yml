@@ -79,19 +79,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Define common values
-        reqpython: ['>=3.10,<3.14']
-        # Define matrix variations
         include:
           # Linux CPU builds
           - release: cpu
             os: ubuntu-latest
             arch: x86_64
             kind: core
+            reqpython: '>=3.10,<3.14'
           - release: cpu
             os: ubuntu-24.04-arm
             arch: aarch64
             kind: core
+            reqpython: '>=3.10,<3.14'
           # Linux CUDA builds
           - release: cuda11x
             os: ubuntu-latest
@@ -99,23 +98,27 @@ jobs:
             kind: cuda_plugin
             cuda_major: 11
             cuda_minor: 8
+            reqpython: '>=3.10,<3.14'
           - release: cuda12x
             os: ubuntu-latest
             arch: x86_64
             kind: cuda_plugin
             cuda_major: 12
-            cuda_minor: 4
+            cuda_minor: 9
+            reqpython: '>=3.10,<3.14'
           # macOS CPU builds
           - release: cpu
             os: macos-13
             arch: x86_64
             kind: core
             macos_ver: 13.0
+            reqpython: '>=3.10,<3.14'
           - release: cpu
             os: macos-14
             arch: arm64
             kind: core
             macos_ver: 14.0
+            reqpython: '>=3.10,<3.14'
     steps:
       # =========================
       # = I - Retrieve sources  =

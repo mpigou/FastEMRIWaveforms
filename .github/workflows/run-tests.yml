@@ -119,7 +119,7 @@ jobs:
             --define nbsphinx_execute=never
       - name: Show coverage results
         run: |
-          uv run --extra doc coverage report -m
+          uv run --extra doc --no-build coverage report -m
       - name: Upload coverage results as artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -144,10 +144,10 @@ jobs:
           merge-multiple: false
       - name: Merge coverage files
         run: |
-          uv run --extra testing coverage combine coverage_results/*/.coverage
+          uv tool run coverage combine coverage_results/*/.coverage
       - name: Export to Cobertura XML
         run: |
-          uv run --extra testing coverage xml
+          uv tool run coverage xml
       - name: Summary
         uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
         with:
