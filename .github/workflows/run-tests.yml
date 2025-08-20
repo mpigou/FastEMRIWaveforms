@@ -87,11 +87,11 @@ jobs:
       - name: Export LAPACK pkgconfig path (macOS 13)
         if: matrix.os == 'macos-13'
         run: |
-          echo "LAPACK_PKG_CONFIG_PATH=/usr/local/opt/lapack/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LAPACK_PKG_CONFIG_PATH=/usr/local/opt/lapack/" >> "$GITHUB_ENV"
       - name: Export LAPACK pkgconfig path (macOS 14 and 15)
         if: matrix.os == 'macos-14' || matrix.os == 'macos-15'
         run: |
-          echo "LAPACK_PKG_CONFIG_PATH=/opt/homebrew/opt/lapack/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LAPACK_PKG_CONFIG_PATH=/opt/homebrew/opt/lapack/" >> "$GITHUB_ENV"
       - name: Build list of disabled tags
         if: matrix.disabled_tags
         run: |
