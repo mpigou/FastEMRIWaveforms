@@ -100,27 +100,35 @@ jobs:
         if: matrix.python-version == '3.12' || matrix.python-version == '3.13'
         run: |
           echo FEWTEST_OTHER_ARGS='--durations 0' >> "$GITHUB_ENV"
-      - name: Install package
+      - name: Install uv
         run: |
           which python
           python --version
           python -m pip install uv
-          python -m uv sync \
+      - name: Run module tests
+        run: |
+          python -m uv run \
+            --extra testing \
+            -C cmake.define.CMAKE_PREFIX_PATH=${LAPACK_PKG_CONFIG_PATH} \
+            -C cmake.define.FEW_WITH_GPU=OFF \
+            -C cmake.define.FEW_LAPACKE_FETCH=OFF \
+            -C cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG \
+            coverage run --source=few -m few.tests ${FEWTEST_OTHER_ARGS}
+      - name: Run doc tests
+        if: matrix.doctest == 'true'
+        run: |
+          python -m uv run \
             --extra testing --extra doc \
             -C cmake.define.CMAKE_PREFIX_PATH=${LAPACK_PKG_CONFIG_PATH} \
             -C cmake.define.FEW_WITH_GPU=OFF \
             -C cmake.define.FEW_LAPACKE_FETCH=OFF \
-            -C cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG
-      - name: Run module tests
-        run: |
-          python -m uv run coverage run --source=few -m few.tests ${FEWTEST_OTHER_ARGS}
-      - name: Run doc tests
-        if: matrix.doctest == 'true'
-        run: |
-          python -m uv run coverage run --source=few -m sphinx.cmd.build -M doctest docs/source docs/build --define nbsphinx_execute=never
+            -C cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG \
+            coverage run --source=few -m sphinx.cmd.build \
+            -M doctest docs/source docs/build \
+            --define nbsphinx_execute=never
       - name: Show coverage results
         run: |
-          python -m uv run coverage report -m
+          python -m uv run --extra doc coverage report -m
       - name: Upload coverage results as artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
