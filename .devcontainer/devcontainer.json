@@ -15,7 +15,7 @@
                 "github.vscode-github-actions"
             ],
             "settings": {
-                "python.defaultInterpreterPath": "/home/few/.local/few-venv/bin/python"
+                "python.defaultInterpreterPath": ".venv/bin/python"
             }
         }
     },

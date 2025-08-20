@@ -1,6 +1,8 @@
 FROM ubuntu:24.04
 USER root
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 RUN apt update \
     && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
       g++-14 \
@@ -21,5 +23,4 @@ ENV CC=gcc-14
 ENV CXX=g++-14
 ENV FC=gfortran-14
 
-ENV PATH=/home/few/.local/few-venv/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
