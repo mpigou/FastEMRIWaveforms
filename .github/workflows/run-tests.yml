@@ -103,12 +103,12 @@ jobs:
       - name: Install package
         run: |
           which python
-          export PKG_CONFIG_PATH=${LAPACK_PKG_CONFIG_PATH}:${PKG_CONFIG_PATH}
           python --version
           python -m pip install uv
           python -m uv sync \
             --extra testing --extra doc \
             --no-editable \
+            -C cmake.define.CMAKE_PREFIX_PATH=${LAPACK_PKG_CONFIG_PATH} \
             -C cmake.define.FEW_WITH_GPU=OFF \
             -C cmake.define.FEW_LAPACKE_FETCH=OFF \
             -C cmake.define.FEW_LAPACKE_DETECT_WITH=PKGCONFIG
