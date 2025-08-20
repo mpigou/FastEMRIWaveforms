@@ -234,7 +234,6 @@ jobs:
             dnf install gcc-toolset-${{ matrix.gcc_version }} -y &&
             dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo &&
             dnf install -y cuda-compiler-${{ matrix.cuda_major }}-${{ matrix.cuda_minor }}.${{ matrix.arch }} cuda-libraries-${{ matrix.cuda_major }}-${{ matrix.cuda_minor }} cuda-libraries-devel-${{ matrix.cuda_major }}-${{ matrix.cuda_minor }}
-          CIBW_BEFORE_BUILD: source /opt/rh/gcc-toolset-${{ matrix.gcc_version }}/enable
           CIBW_ENVIRONMENT: >
             PATH="/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}/bin:${PATH}"
             LD_LIBRARY_PATH="/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}/lib64:${LD_LIBRARY_PATH}"
@@ -242,8 +241,8 @@ jobs:
             CUDA_ROOT=/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}
             CUDA_PATH=/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}
             CUDADIR=/usr/local/cuda-${{ matrix.cuda_major }}.${{ matrix.cuda_minor }}
-            CC=gcc
-            CXX=g++
+            CC=/opt/rh/gcc-toolset-${{ matrix.gcc_version }}/root/usr/bin/gcc
+            CXX=/opt/rh/gcc-toolset-${{ matrix.gcc_version }}/root/usr/bin/g++
             SETUPTOOLS_SCM_PRETEND_VERSION="${{ needs.version.outputs.version }}"
           CIBW_REPAIR_WHEEL_COMMAND: auditwheel repair -w {dest_dir} {wheel} --exclude "libcudart.so.${{ matrix.cuda_major }}" --exclude "libcusparse.so.${{ matrix.cuda_major }}" --exclude "libcublas.so.${{ matrix.cuda_major }}" --exclude "libnvJitLink.so.${{ matrix.cuda_major }}" --exclude "libcublasLt.so.${{ matrix.cuda_major }}"
       # =====================
