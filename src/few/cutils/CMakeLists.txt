@@ -314,6 +314,7 @@ function(apply_cpu_backend_common_options libname)
     PROPERTY LIBRARY_OUTPUT_DIRECTORY
              "${BACKEND_BASE_OUTPUT_DIRECTORY}/few_backend_cpu")
   set_property(TARGET ${target_name} PROPERTY OUTPUT_NAME ${libname})
+  set_property(TARGET ${target_name} PROPERTY CXX_STANDARD 20)
 
   install(TARGETS ${target_name} DESTINATION few_backend_cpu)
 
@@ -352,6 +353,7 @@ function(apply_gpu_backend_common_options libname)
     PROPERTY LIBRARY_OUTPUT_DIRECTORY
              "${BACKEND_BASE_OUTPUT_DIRECTORY}/${backend_name}")
   set_property(TARGET ${target_name} PROPERTY OUTPUT_NAME ${libname})
+  set_property(TARGET ${target_name} PROPERTY CUDA_STANDARD 20)
 
   install(TARGETS ${target_name} DESTINATION ${backend_name})
 
